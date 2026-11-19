@@ -1,6 +1,3 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-
 import type { TreinoDetalhadoDTO } from '../types/treino';
 import type { EngajamentoDTO } from '../types/engajamento';
 import type { PerfilParticipanteDTO } from '../types/perfil';
@@ -21,29 +18,15 @@ import type { InicioParticipanteDTO } from '../types/inicio';
 //   removerTokenPush    -> PATCH /participantes/:participanteId/push-token
 //   responderPerguntaRefazer -> PATCH /sessoes/:sessaoId/pergunta-refazer
 
+const DEFAULT_API_BASE_URL = 'https://meraki.lifesystems.dev';
+
 export function resolverApiBaseUrl(): string {
-  const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+  const envApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (envApiUrl) {
-    return envApiUrl;
+    return envApiUrl.replace(/\/+$/, '');
   }
 
-  const hostUri = Constants.expoConfig?.hostUri ?? Constants.expoGoConfig?.debuggerHost;
-  if (hostUri) {
-    const host = hostUri.split(':')[0];
-
-    if (Platform.OS === 'android' && (host === 'localhost' || host === '127.0.0.1')) {
-      return 'http://10.0.2.2:3000';
-    }
-
-    return `http://${host}:3000`;
-  }
-
-  return (
-    Platform.select({
-      android: 'http://10.0.2.2:3000',
-      default: 'http://localhost:3000',
-    }) ?? 'http://localhost:3000'
-  );
+  return DEFAULT_API_BASE_URL;
 }
 
 const API_BASE_URL = resolverApiBaseUrl();
