@@ -2,6 +2,7 @@ import type { TreinoDetalhadoDTO } from '../types/treino';
 import type { EngajamentoDTO } from '../types/engajamento';
 import type { PerfilParticipanteDTO } from '../types/perfil';
 import type { InicioParticipanteDTO } from '../types/inicio';
+import type { ResultadoFeedback } from '../types/premios';
 
 // Contrato da API (implementado no repo exercicios-app-backend, src/routes/):
 //   login               -> POST  /login
@@ -180,7 +181,8 @@ export async function finalizarSessao(
   await tratarResposta(response, 'Não foi possível finalizar a sessão');
 }
 
-export async function enviarFeedback(sessaoId: number, rating: number): Promise<void> {
+/** Salva a nota de esforço e devolve o que o treino rendeu (para o pop-up de prêmios). */
+export async function enviarFeedback(sessaoId: number, rating: number): Promise<ResultadoFeedback> {
   const response = await fetchComTimeout(`${API_BASE_URL}/avaliacoes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -191,6 +193,19 @@ export async function enviarFeedback(sessaoId: number, rating: number): Promise<
   });
 
   await tratarResposta(response, 'Não foi possível enviar a avaliação');
+
+  // A avaliação já foi salva; se o corpo não vier como esperado, só não mostramos o pop-up.
+  try {
+    const dados = await response.json();
+    return {
+      resumoSessao: dados?.resumoSessao ?? null,
+      totais: dados?.gamificacao
+        ? { estrelas: Number(dados.gamificacao.estrelas) || 0, trofeus: Number(dados.gamificacao.trofeus) || 0 }
+        : null,
+    };
+  } catch {
+    return { resumoSessao: null, totais: null };
+  }
 }
 
 export async function buscarEngajamento(participanteId: number): Promise<EngajamentoDTO> {

@@ -21,6 +21,7 @@ import {
 } from '../services/treinoService';
 import { registrarNotificacoesPush, removerNotificacoesPush } from '../services/pushNotifications';
 import TelaEscolhaAvatar from '../telas/TelaEscolhaAvatar';
+import ModalPremiosTreino from '../telas/premios/ModalPremiosTreino';
 import TelaFeedback from '../telas/TelaFeedback';
 import TelaEngajamento from '../telas/TelaEngajamento';
 import TelaInicio, { MENSAGEM_TREINO_CONCLUIDO_HOJE, type ProximoTreinoResumo } from '../telas/TelaInicio';
@@ -29,6 +30,7 @@ import TelaLogin from '../telas/TelaLogin';
 import TelaPerfil from '../telas/TelaPerfil';
 import TelaRedefinirSenha from '../telas/TelaRedefinirSenha';
 import TelaTreinoExecucao from '../telas/TelaTreinoExecucao';
+import type { ResultadoFeedback } from '../types/premios';
 import type { RegistroExecucao, TreinoDetalhadoDTO, TreinoExercicioDTO } from '../types/treino';
 
 type Etapa = 'login' | 'redefinirSenha' | 'escolhaAvatar' | 'app';
@@ -70,6 +72,8 @@ export default function FluxoTelas() {
   const [redefinirSenhaError, setRedefinirSenhaError] = React.useState<string | null>(null);
   const [avatarError, setAvatarError] = React.useState<string | null>(null);
   const [feedbackError, setFeedbackError] = React.useState<string | null>(null);
+  // Prêmios do treino recém-avaliado: abre o pop-up por cima da tela de ranking.
+  const [premiosDoTreino, setPremiosDoTreino] = React.useState<ResultadoFeedback | null>(null);
   const [participante, setParticipante] = React.useState<ParticipanteLogado | null>(null);
   const [avatarGenero, setAvatarGenero] = React.useState<GeneroAvatar | null>(null);
   const [nomeAvatar, setNomeAvatar] = React.useState<string>('');
@@ -151,7 +155,8 @@ export default function FluxoTelas() {
 
     try {
       setIsSubmittingFeedback(true);
-      await enviarFeedback(sessaoId, rating);
+      const resultado = await enviarFeedback(sessaoId, rating);
+      setPremiosDoTreino(resultado);
       setFeedbackError(null);
       setScreenIndex('intro');
       setAbaAtiva('ranking');
@@ -482,6 +487,8 @@ export default function FluxoTelas() {
               })}
             </View>
           )}
+
+          <ModalPremiosTreino resultado={premiosDoTreino} onFechar={() => setPremiosDoTreino(null)} />
         </View>
       </View>
     </SafeAreaView>
