@@ -128,7 +128,7 @@ export default function TelaPerfil({
           </View>
         </Pressable>
         <Text style={styles.nome}>{dados.nome}</Text>
-        <Text style={styles.nivelSubtitulo}>Nível {dados.categoria}</Text>
+        <Text style={styles.nivelSubtitulo}>{dados.proximoNivel.nivelAtual}</Text>
       </View>
 
       <View style={styles.statsRow}>

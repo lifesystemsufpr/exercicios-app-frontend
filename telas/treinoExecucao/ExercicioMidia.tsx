@@ -87,6 +87,8 @@ export default function ExercicioMidia({
 }: ExercicioMidiaProps) {
   const taxaReproducao = typeof velocidade === 'number' && velocidade > 0 ? velocidade : 1;
   const [erroVideo, setErroVideo] = React.useState(false);
+  // Vídeos gravados em pé (retrato) ganham uma área mais alta; os deitados mantêm a altura padrão.
+  const [videoEmPe, setVideoEmPe] = React.useState(false);
   const nativeVideoRef = React.useRef<any>(null);
   const webVideoRef = React.useRef<any>(null);
   const isYouTube = videoUrl ? isYouTubeUrl(videoUrl) : false;
@@ -131,8 +133,13 @@ export default function ExercicioMidia({
     aplicarVelocidadeWeb();
   }, [aplicarVelocidadeWeb, sourceUri]);
 
+  React.useEffect(() => {
+    setVideoEmPe(false);
+    setErroVideo(false);
+  }, [sourceUri]);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, videoEmPe && styles.containerVideoEmPe]}>
       {sourceUri && !erroVideo ? (
         isYouTube ? (
           Platform.OS === 'web' ? (
@@ -164,8 +171,12 @@ export default function ExercicioMidia({
               autoPlay={!isPaused}
               loop={shouldLoopVideo}
               src={sourceUri}
-              style={styles.video}
-              onLoadedMetadata={aplicarVelocidadeWeb}
+              style={estiloVideoWeb}
+              onLoadedMetadata={(evento) => {
+                aplicarVelocidadeWeb();
+                const { videoWidth, videoHeight } = evento.currentTarget;
+                setVideoEmPe(videoHeight > videoWidth);
+              }}
               onError={() => setErroVideo(true)}
             />
           ) : (
@@ -178,6 +189,10 @@ export default function ExercicioMidia({
               isLooping={shouldLoopVideo}
               rate={taxaReproducao}
               shouldCorrectPitch
+              onReadyForDisplay={(evento) => {
+                const { width, height } = evento.naturalSize;
+                setVideoEmPe(height > width);
+              }}
               onError={() => setErroVideo(true)}
             />
           )
@@ -197,13 +212,26 @@ export default function ExercicioMidia({
   );
 }
 
+// No navegador o <video> é um elemento HTML: precisa de altura explícita e object-fit,
+// senão um vídeo em pé fica com a altura original e só a parte de cima aparece.
+const estiloVideoWeb: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'contain',
+  display: 'block',
+};
+
 const styles = StyleSheet.create({
   container: {
     marginHorizontal: 20,
     height: 260,
     borderRadius: 18,
-    backgroundColor: '#eceef2',
+    // Mesmo cinza do fundo dos vídeos dos exercícios: sem faixas claras nas laterais.
+    backgroundColor: '#3b3b3b',
     overflow: 'hidden',
+  },
+  containerVideoEmPe: {
+    height: 360,
   },
   video: {
     flex: 1,
@@ -215,7 +243,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   placeholderText: {
-    color: '#7a7f8c',
+    color: '#c9ccd3',
     fontSize: 16,
     textAlign: 'center',
   },

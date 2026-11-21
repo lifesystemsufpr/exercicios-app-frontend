@@ -5,8 +5,10 @@ import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import type { PercepcaoEsforcoDTO } from '../../types/engajamento';
 import { coresRanking, estiloBase } from './estilo';
 
-const ALTURA = 130;
+const ALTURA = 150; // inclui a linha das datas, desenhada dentro do gráfico
 const MARGEM_ESQUERDA = 24;
+const MARGEM_DIREITA = 8;
+const FOLGA_PONTO = 6; // afasta os pontos das bordas para o círculo não ser cortado
 const MARGEM_VERTICAL = 10;
 const ESCALA_MAX = 10; // escala OMNI de 0 a 10
 const MARCAS_Y = [0, 5, 10];
@@ -16,10 +18,12 @@ export default function GraficoEsforco({ valores }: { valores: PercepcaoEsforcoD
 
   const onLayout = (evento: LayoutChangeEvent) => setLargura(evento.nativeEvent.layout.width);
 
-  const areaLargura = Math.max(0, largura - MARGEM_ESQUERDA - 8);
-  const areaAltura = ALTURA - MARGEM_VERTICAL * 2;
+  const inicioX = MARGEM_ESQUERDA + FOLGA_PONTO;
+  const areaLargura = Math.max(0, largura - MARGEM_DIREITA - FOLGA_PONTO - inicioX);
+  const areaAltura = ALTURA - MARGEM_VERTICAL * 2 - 22; // 22 = espaço das datas
+  // Com um único ponto ele fica na ponta esquerda, junto da data (não no meio do gráfico).
   const x = (index: number) =>
-    MARGEM_ESQUERDA + (valores.length > 1 ? (index * areaLargura) / (valores.length - 1) : areaLargura / 2);
+    inicioX + (valores.length > 1 ? (index * areaLargura) / (valores.length - 1) : 0);
   const y = (valor: number) => MARGEM_VERTICAL + areaAltura - (valor / ESCALA_MAX) * areaAltura;
   const pontos = valores.map((item, index) => `${x(index)},${y(item.valor)}`).join(' ');
 
@@ -48,7 +52,7 @@ export default function GraficoEsforco({ valores }: { valores: PercepcaoEsforcoD
                   <React.Fragment key={marca}>
                     <Line
                       x1={MARGEM_ESQUERDA}
-                      x2={largura - 8}
+                      x2={largura - MARGEM_DIREITA}
                       y1={y(marca)}
                       y2={y(marca)}
                       stroke={coresRanking.trilha}
@@ -71,13 +75,22 @@ export default function GraficoEsforco({ valores }: { valores: PercepcaoEsforcoD
                     strokeWidth={2.5}
                   />
                 ))}
+                <SvgText x={x(0)} y={ALTURA - 2} fontSize={14} fill={coresRanking.textoSecundario} textAnchor="start">
+                  {primeira}
+                </SvgText>
+                {valores.length > 1 && (
+                  <SvgText
+                    x={x(valores.length - 1)}
+                    y={ALTURA - 2}
+                    fontSize={14}
+                    fill={coresRanking.textoSecundario}
+                    textAnchor="end"
+                  >
+                    {ultima}
+                  </SvgText>
+                )}
               </Svg>
             )}
-          </View>
-
-          <View style={styles.datas}>
-            <Text style={styles.data}>{primeira}</Text>
-            {valores.length > 1 && <Text style={styles.data}>{ultima}</Text>}
           </View>
         </>
       )}
@@ -89,15 +102,6 @@ const styles = StyleSheet.create({
   area: {
     marginTop: 8,
     height: ALTURA,
-  },
-  datas: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingLeft: MARGEM_ESQUERDA,
-  },
-  data: {
-    fontSize: 14,
-    color: coresRanking.textoSecundario,
   },
   legenda: {
     marginTop: 8,
