@@ -3,6 +3,7 @@ import React from 'react';
 import {
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,10 +12,12 @@ import {
 } from 'react-native';
 
 import { COR_FUNDO_AVATAR, imagemAvatar, ZOOM_AVATAR, type GeneroAvatar } from '../utils/avatar';
+import { useDimensoesTela } from '../utils/layoutTela';
 
 export type { GeneroAvatar };
 
 const ALTURA_IMAGEM_AVATAR = 250;
+const ALTURA_IMAGEM_AVATAR_COMPACTA = 180;
 
 type TelaEscolhaAvatarProps = {
   onContinue?: (genero: GeneroAvatar, nomeAvatar: string) => void | Promise<void>;
@@ -33,6 +36,7 @@ export default function TelaEscolhaAvatar({
   initialGenero = null,
   initialNomeAvatar = '',
 }: TelaEscolhaAvatarProps) {
+  const { compacta } = useDimensoesTela();
   const [generoSelecionado, setGeneroSelecionado] = React.useState<GeneroAvatar | null>(
     initialGenero,
   );
@@ -41,6 +45,7 @@ export default function TelaEscolhaAvatar({
   const nomeInformado = nomeAvatar.trim().length > 0;
   const podeContinuar =
     Boolean(generoSelecionado) && nomeInformado && Boolean(onContinue) && !isSubmitting;
+  const alturaImagem = compacta ? ALTURA_IMAGEM_AVATAR_COMPACTA : ALTURA_IMAGEM_AVATAR;
 
   const handleContinuar = () => {
     if (!podeContinuar || !onContinue || !generoSelecionado) {
@@ -51,62 +56,71 @@ export default function TelaEscolhaAvatar({
 
   return (
     <View style={styles.card}>
-      <View style={styles.content}>
-        {onBackPress ? (
-          <Pressable onPress={onBackPress} hitSlop={12} style={styles.backButton}>
-            <Text style={styles.backArrow}>←</Text>
-          </Pressable>
-        ) : null}
+      <ScrollView
+        contentContainerStyle={styles.rolagem}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
+          {onBackPress ? (
+            <Pressable onPress={onBackPress} hitSlop={12} style={styles.backButton}>
+              <Text style={styles.backArrow}>←</Text>
+            </Pressable>
+          ) : null}
 
-        <Text style={styles.title}>Escolha seu avatar</Text>
-        <Text style={styles.subtitle}>Selecione o seu personagem e o nomeie</Text>
+          <Text style={[styles.title, compacta && styles.titleCompacto]}>Escolha seu avatar</Text>
+          <Text style={styles.subtitle}>Selecione o seu personagem e o nomeie</Text>
 
-        <View style={styles.optionsRow}>
-          <OpcaoGenero
-            imagem={imagemAvatar.FEMININO}
-            label="Feminino"
-            selecionado={generoSelecionado === 'FEMININO'}
-            onPress={() => setGeneroSelecionado('FEMININO')}
-          />
-          <OpcaoGenero
-            imagem={imagemAvatar.MASCULINO}
-            label="Masculino"
-            selecionado={generoSelecionado === 'MASCULINO'}
-            onPress={() => setGeneroSelecionado('MASCULINO')}
-          />
-        </View>
-
-        {generoSelecionado ? (
-          <View style={styles.nomeField}>
-            <Text style={styles.label}>Nome do avatar</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Escolha o nome do seu avatar"
-              placeholderTextColor="#9aa1af"
-              value={nomeAvatar}
-              onChangeText={setNomeAvatar}
-              autoCapitalize="words"
-              maxLength={40}
+          <View style={styles.optionsRow}>
+            <OpcaoGenero
+              imagem={imagemAvatar.FEMININO}
+              label="Feminino"
+              selecionado={generoSelecionado === 'FEMININO'}
+              alturaImagem={alturaImagem}
+              onPress={() => setGeneroSelecionado('FEMININO')}
+            />
+            <OpcaoGenero
+              imagem={imagemAvatar.MASCULINO}
+              label="Masculino"
+              selecionado={generoSelecionado === 'MASCULINO'}
+              alturaImagem={alturaImagem}
+              onPress={() => setGeneroSelecionado('MASCULINO')}
             />
           </View>
-        ) : null}
 
-        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+          {generoSelecionado ? (
+            <View style={styles.nomeField}>
+              <Text style={styles.label}>Nome do avatar</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Escolha o nome do seu avatar"
+                placeholderTextColor="#9aa1af"
+                value={nomeAvatar}
+                onChangeText={setNomeAvatar}
+                autoCapitalize="words"
+                maxLength={40}
+              />
+            </View>
+          ) : null}
 
-        <View style={styles.spacer} />
+          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-        <Pressable
-          style={[styles.continueButton, !podeContinuar && styles.continueButtonDisabled]}
-          onPress={handleContinuar}
-          disabled={!podeContinuar}
-          accessibilityRole="button"
-          accessibilityLabel="Continuar"
-        >
-          <Text style={styles.continueButtonText}>
-            {isSubmitting ? 'Salvando...' : 'Continuar'}
-          </Text>
-        </Pressable>
-      </View>
+          <View style={styles.spacer} />
+
+          <Pressable
+            style={[styles.continueButton, !podeContinuar && styles.continueButtonDisabled]}
+            onPress={handleContinuar}
+            disabled={!podeContinuar}
+            accessibilityRole="button"
+            accessibilityLabel="Continuar"
+          >
+            <Text style={styles.continueButtonText}>
+              {isSubmitting ? 'Salvando...' : 'Continuar'}
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -115,10 +129,11 @@ type OpcaoGeneroProps = {
   imagem: ImageSourcePropType;
   label: string;
   selecionado: boolean;
+  alturaImagem: number;
   onPress: () => void;
 };
 
-function OpcaoGenero({ imagem, label, selecionado, onPress }: OpcaoGeneroProps) {
+function OpcaoGenero({ imagem, label, selecionado, alturaImagem, onPress }: OpcaoGeneroProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -128,7 +143,7 @@ function OpcaoGenero({ imagem, label, selecionado, onPress }: OpcaoGeneroProps) 
       accessibilityState={{ selected: selecionado }}
     >
       {/* Moldura com o mesmo fundo escuro do PNG: a imagem preenche a área toda, sem "caixa" dentro do cartão */}
-      <View style={styles.molduraImagem}>
+      <View style={[styles.molduraImagem, { height: alturaImagem }]}>
         <Image
           source={imagem}
           style={[styles.opcaoImagem, { transform: [{ scale: ZOOM_AVATAR }] }]}
@@ -147,24 +162,16 @@ function OpcaoGenero({ imagem, label, selecionado, onPress }: OpcaoGeneroProps) 
 
 const styles = StyleSheet.create({
   card: {
-    width: '100%',
-    maxWidth: 390,
     flex: 1,
-    maxHeight: 720,
-    borderRadius: 22,
+    width: '100%',
     backgroundColor: '#ffffff',
     overflow: 'hidden',
-    shadowColor: '#121826',
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    elevation: 6,
+  },
+  rolagem: {
+    flexGrow: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 24,
@@ -187,6 +194,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#20222b',
     marginBottom: 8,
+  },
+  titleCompacto: {
+    fontSize: 24,
+    lineHeight: 30,
   },
   subtitle: {
     fontSize: 17,
@@ -220,6 +231,7 @@ const styles = StyleSheet.create({
   },
   opcaoCard: {
     flex: 1,
+    minWidth: 0,
     borderRadius: 18,
     borderWidth: 2,
     borderColor: '#e4e8f0',
@@ -234,7 +246,6 @@ const styles = StyleSheet.create({
   },
   molduraImagem: {
     width: '100%',
-    height: ALTURA_IMAGEM_AVATAR,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: COR_FUNDO_AVATAR, // mesmo tom do fundo das imagens
@@ -271,7 +282,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   spacer: {
-    flex: 1,
+    flexGrow: 1,
     minHeight: 24,
   },
   continueButton: {

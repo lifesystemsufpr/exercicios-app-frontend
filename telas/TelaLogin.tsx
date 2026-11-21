@@ -1,8 +1,19 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
+import {
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextStyle,
+} from 'react-native';
 
 import { formatCpf } from '../utils/formatCpf';
+import { useDimensoesTela } from '../utils/layoutTela';
 
 type TelaLoginProps = {
   onSubmit?: (cpf: string, senha: string) => void | Promise<void>;
@@ -49,6 +60,7 @@ export default function TelaLogin({
   isSubmitting,
   errorMessage,
 }: TelaLoginProps) {
+  const { compacta } = useDimensoesTela();
   const [cpf, setCpf] = React.useState('');
   const [senha, setSenha] = React.useState('');
   const [senhaVisivel, setSenhaVisivel] = React.useState(false);
@@ -79,18 +91,22 @@ export default function TelaLogin({
         contentContainerStyle={styles.rolagem}
         keyboardShouldPersistTaps="handled"
         bounces={false}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.cabecalho}>
-          <View style={styles.logo}>
-            <MaterialCommunityIcons name="heart-pulse" size={40} color={cores.destaque} />
-          </View>
-          <Text style={styles.nomeApp} accessibilityRole="header">
+        <View style={[styles.cabecalho, compacta && styles.cabecalhoCompacto]}>
+          <Image
+            source={require('../assets/meraki_icone.png')}
+            style={[styles.logo, compacta && styles.logoCompacta]}
+            accessibilityLabel="Logo Meraki"
+            resizeMode="cover"
+          />
+          <Text style={[styles.nomeApp, compacta && styles.nomeAppCompacto]} accessibilityRole="header">
             Meraki
           </Text>
           <Text style={styles.slogan}>Seu treino em casa, no seu ritmo</Text>
         </View>
 
-        <View style={styles.formulario}>
+        <View style={[styles.formulario, compacta && styles.formularioCompacto]}>
           {temErro ? (
             <View style={styles.alertaErro} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <MaterialCommunityIcons name="alert-circle-outline" size={24} color={cores.erro} />
@@ -98,7 +114,7 @@ export default function TelaLogin({
             </View>
           ) : (
             <View style={styles.saudacao}>
-              <Text style={styles.titulo}>Bem-vindo(a)!</Text>
+              <Text style={[styles.titulo, compacta && styles.tituloCompacto]}>Bem-vindo(a)!</Text>
               <Text style={styles.subtitulo}>Entre com seu CPF e sua senha.</Text>
             </View>
           )}
@@ -196,45 +212,50 @@ export default function TelaLogin({
 
 const styles = StyleSheet.create({
   card: {
-    width: '100%',
-    maxWidth: 390,
     flex: 1,
-    maxHeight: 720,
-    borderRadius: 22,
+    width: '100%',
     backgroundColor: cores.fundo,
     overflow: 'hidden',
-    shadowColor: '#121826',
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
   },
   rolagem: {
     flexGrow: 1,
+    paddingBottom: 16,
   },
   cabecalho: {
     backgroundColor: cores.destaque,
-    paddingTop: 40,
-    paddingBottom: 56,
+    paddingTop: 36,
+    paddingBottom: 52,
     paddingHorizontal: 24,
     borderBottomLeftRadius: 36,
     borderBottomRightRadius: 36,
     alignItems: 'center',
     gap: 12,
   },
+  cabecalhoCompacto: {
+    paddingTop: 24,
+    paddingBottom: 40,
+    gap: 8,
+  },
   logo: {
+    width: 88,
+    height: 88,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+  },
+  logoCompacta: {
     width: 72,
     height: 72,
-    borderRadius: 36,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 18,
   },
   nomeApp: {
     fontSize: 32,
     lineHeight: 38,
     fontWeight: '800',
     color: '#ffffff',
+  },
+  nomeAppCompacto: {
+    fontSize: 28,
+    lineHeight: 34,
   },
   slogan: {
     fontSize: 17,
@@ -257,6 +278,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 3,
   },
+  formularioCompacto: {
+    marginTop: -20,
+    paddingTop: 18,
+    gap: 14,
+  },
   saudacao: {
     gap: 4,
   },
@@ -265,6 +291,10 @@ const styles = StyleSheet.create({
     lineHeight: 32,
     fontWeight: '800',
     color: cores.texto,
+  },
+  tituloCompacto: {
+    fontSize: 22,
+    lineHeight: 28,
   },
   subtitulo: {
     fontSize: 17,
@@ -369,15 +399,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: cores.destaqueTexto,
     textDecorationLine: 'underline',
-  },
-  rodape: {
-    marginTop: 'auto',
-    paddingTop: 14,
-    paddingBottom: 18,
-    paddingHorizontal: 24,
-    textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 20,
-    color: cores.textoSuave,
   },
 });

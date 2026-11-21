@@ -32,6 +32,7 @@ import TelaRedefinirSenha from '../telas/TelaRedefinirSenha';
 import TelaTreinoExecucao from '../telas/TelaTreinoExecucao';
 import type { ResultadoFeedback } from '../types/premios';
 import type { RegistroExecucao, TreinoDetalhadoDTO, TreinoExercicioDTO } from '../types/treino';
+import { PADDING_SHELL, useDimensoesTela } from '../utils/layoutTela';
 
 type Etapa = 'login' | 'redefinirSenha' | 'escolhaAvatar' | 'app';
 type TrainingStep = 'intro' | 'execucao' | 'feedback';
@@ -61,6 +62,12 @@ function calcularDuracaoSegundos(treino: TreinoDetalhadoDTO | null): number {
 }
 
 export default function FluxoTelas() {
+  const { larguraShell, alturaShell } = useDimensoesTela();
+  const estiloShell = React.useMemo(
+    () => [{ width: larguraShell, height: alturaShell }],
+    [larguraShell, alturaShell],
+  );
+
   const [etapa, setEtapa] = React.useState<Etapa>('login');
   const [abaAtiva, setAbaAtiva] = React.useState<Aba>('inicio');
   const [screenIndex, setScreenIndex] = React.useState<TrainingStep>('intro');
@@ -280,56 +287,58 @@ export default function FluxoTelas() {
       <SafeAreaView style={styles.appShell}>
         <StatusBar style="dark" />
         <View style={styles.modalScreen}>
-          <TelaLogin
-            isSubmitting={isLoggingIn}
-            errorMessage={loginError}
-            onForgotPasswordPress={() => setEtapa('redefinirSenha')}
-            onSubmit={async (cpf, senha) => {
-              try {
-                setIsLoggingIn(true);
-                const participanteLogado = await login(cpf, senha);
-                setLoginError(null);
-                setParticipante(participanteLogado);
-
-                // Lembrete padrão, lembrete repetido e lembrete semanal (push fora do app).
-                void registrarNotificacoesPush(participanteLogado.participanteId);
-
+          <View style={[styles.phoneShell, estiloShell]}>
+            <TelaLogin
+              isSubmitting={isLoggingIn}
+              errorMessage={loginError}
+              onForgotPasswordPress={() => setEtapa('redefinirSenha')}
+              onSubmit={async (cpf, senha) => {
                 try {
-                  const perfil = await buscarPerfilParticipante(participanteLogado.participanteId);
-                  if (perfil.avatarGenero) {
-                    setAvatarGenero(perfil.avatarGenero);
-                    setNomeAvatar(perfil.nomeAvatar ?? '');
+                  setIsLoggingIn(true);
+                  const participanteLogado = await login(cpf, senha);
+                  setLoginError(null);
+                  setParticipante(participanteLogado);
+
+                  // Lembrete padrão, lembrete repetido e lembrete semanal (push fora do app).
+                  void registrarNotificacoesPush(participanteLogado.participanteId);
+
+                  try {
+                    const perfil = await buscarPerfilParticipante(participanteLogado.participanteId);
+                    if (perfil.avatarGenero) {
+                      setAvatarGenero(perfil.avatarGenero);
+                      setNomeAvatar(perfil.nomeAvatar ?? '');
+                      setEtapa('app');
+                    } else {
+                      setEtapa('escolhaAvatar');
+                    }
+                  } catch {
+                    // Falha ao buscar o perfil (ex.: rede instável) não significa que o
+                    // participante nunca configurou avatar — não force a reconfiguração.
                     setEtapa('app');
-                  } else {
-                    setEtapa('escolhaAvatar');
                   }
-                } catch {
-                  // Falha ao buscar o perfil (ex.: rede instável) não significa que o
-                  // participante nunca configurou avatar — não force a reconfiguração.
-                  setEtapa('app');
-                }
 
-                setTreinoLoading(true);
-                setTreinoError(null);
-                try {
-                  const treinoDoParticipante = await buscarTreinoAtivoDoParticipante(
-                    participanteLogado.participanteId,
-                  );
-                  setTreino(treinoDoParticipante);
+                  setTreinoLoading(true);
+                  setTreinoError(null);
+                  try {
+                    const treinoDoParticipante = await buscarTreinoAtivoDoParticipante(
+                      participanteLogado.participanteId,
+                    );
+                    setTreino(treinoDoParticipante);
+                  } catch (error) {
+                    setTreinoError(
+                      error instanceof Error ? error.message : 'Erro ao carregar o treino',
+                    );
+                  } finally {
+                    setTreinoLoading(false);
+                  }
                 } catch (error) {
-                  setTreinoError(
-                    error instanceof Error ? error.message : 'Erro ao carregar o treino',
-                  );
+                  setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar.');
                 } finally {
-                  setTreinoLoading(false);
+                  setIsLoggingIn(false);
                 }
-              } catch (error) {
-                setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar.');
-              } finally {
-                setIsLoggingIn(false);
-              }
-            }}
-          />
+              }}
+            />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -340,25 +349,27 @@ export default function FluxoTelas() {
       <SafeAreaView style={styles.appShell}>
         <StatusBar style="dark" />
         <View style={styles.modalScreen}>
-          <TelaRedefinirSenha
-            isSubmitting={isResettingPassword}
-            errorMessage={redefinirSenhaError}
-            onBackPress={() => setEtapa('login')}
-            onSubmit={async (cpf, novaSenha) => {
-              try {
-                setIsResettingPassword(true);
-                await redefinirSenha(cpf, novaSenha);
-                setRedefinirSenhaError(null);
-                setEtapa('login');
-              } catch (error) {
-                setRedefinirSenhaError(
-                  error instanceof Error ? error.message : 'Não foi possível redefinir a senha.',
-                );
-              } finally {
-                setIsResettingPassword(false);
-              }
-            }}
-          />
+          <View style={[styles.phoneShell, estiloShell]}>
+            <TelaRedefinirSenha
+              isSubmitting={isResettingPassword}
+              errorMessage={redefinirSenhaError}
+              onBackPress={() => setEtapa('login')}
+              onSubmit={async (cpf, novaSenha) => {
+                try {
+                  setIsResettingPassword(true);
+                  await redefinirSenha(cpf, novaSenha);
+                  setRedefinirSenhaError(null);
+                  setEtapa('login');
+                } catch (error) {
+                  setRedefinirSenhaError(
+                    error instanceof Error ? error.message : 'Não foi possível redefinir a senha.',
+                  );
+                } finally {
+                  setIsResettingPassword(false);
+                }
+              }}
+            />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -369,38 +380,40 @@ export default function FluxoTelas() {
       <SafeAreaView style={styles.appShell}>
         <StatusBar style="dark" />
         <View style={styles.modalScreen}>
-          <TelaEscolhaAvatar
-            isSubmitting={isSavingAvatar}
-            errorMessage={avatarError}
-            initialGenero={avatarGenero}
-            initialNomeAvatar={nomeAvatar}
-            onBackPress={() => setEtapa(participante ? 'app' : 'login')}
-            onContinue={async (genero, nome) => {
-              if (participante) {
-                try {
-                  setIsSavingAvatar(true);
-                  await salvarAvatar(participante.participanteId, genero, nome);
+          <View style={[styles.phoneShell, estiloShell]}>
+            <TelaEscolhaAvatar
+              isSubmitting={isSavingAvatar}
+              errorMessage={avatarError}
+              initialGenero={avatarGenero}
+              initialNomeAvatar={nomeAvatar}
+              onBackPress={() => setEtapa(participante ? 'app' : 'login')}
+              onContinue={async (genero, nome) => {
+                if (participante) {
+                  try {
+                    setIsSavingAvatar(true);
+                    await salvarAvatar(participante.participanteId, genero, nome);
+                    setAvatarGenero(genero);
+                    setNomeAvatar(nome);
+                    setAvatarError(null);
+                    setEtapa('app');
+                  } catch (error) {
+                    setAvatarError(
+                      error instanceof Error
+                        ? error.message
+                        : 'Não foi possível salvar o avatar.',
+                    );
+                  } finally {
+                    setIsSavingAvatar(false);
+                  }
+                } else {
                   setAvatarGenero(genero);
                   setNomeAvatar(nome);
                   setAvatarError(null);
                   setEtapa('app');
-                } catch (error) {
-                  setAvatarError(
-                    error instanceof Error
-                      ? error.message
-                      : 'Não foi possível salvar o avatar.',
-                  );
-                } finally {
-                  setIsSavingAvatar(false);
                 }
-              } else {
-                setAvatarGenero(genero);
-                setNomeAvatar(nome);
-                setAvatarError(null);
-                setEtapa('app');
-              }
-            }}
-          />
+              }}
+            />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -413,7 +426,7 @@ export default function FluxoTelas() {
       <StatusBar style="dark" />
 
       <View style={styles.phoneShellWrap}>
-        <View style={styles.phoneShell}>
+        <View style={[styles.phoneShell, estiloShell]}>
           <View style={styles.phoneContent}>
             {abaAtiva === 'ranking' && (
               <View style={styles.rankingArea}>
@@ -504,13 +517,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: PADDING_SHELL,
+    paddingVertical: PADDING_SHELL,
   },
   phoneShell: {
-    width: '100%',
-    maxWidth: 390,
-    height: 720,
     borderRadius: 22,
     backgroundColor: '#ffffff',
     overflow: 'hidden',
@@ -541,9 +551,10 @@ const styles = StyleSheet.create({
   },
   modalScreen: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: PADDING_SHELL,
+    paddingVertical: PADDING_SHELL,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   trainingArea: {
     flex: 1,

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatCpf } from '../utils/formatCpf';
+import { useDimensoesTela } from '../utils/layoutTela';
 import IconeOlho from './IconeOlho';
 
 type TelaRedefinirSenhaProps = {
@@ -23,6 +24,7 @@ export default function TelaRedefinirSenha({
   isSubmitting,
   errorMessage,
 }: TelaRedefinirSenhaProps) {
+  const { compacta } = useDimensoesTela();
   const [cpf, setCpf] = React.useState('');
   const [novaSenha, setNovaSenha] = React.useState('');
   const [confirmarSenha, setConfirmarSenha] = React.useState('');
@@ -62,100 +64,99 @@ export default function TelaRedefinirSenha({
 
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
-        {onBackPress ? (
-          <Pressable onPress={onBackPress} hitSlop={12} style={styles.backButton}>
-            <Text style={styles.backArrow}>←</Text>
+      <ScrollView
+        contentContainerStyle={styles.rolagem}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.header, compacta && styles.headerCompacto]}>
+          {onBackPress ? (
+            <Pressable onPress={onBackPress} hitSlop={12} style={styles.backButton}>
+              <Text style={styles.backArrow}>←</Text>
+            </Pressable>
+          ) : null}
+          <Text style={[styles.headerTitle, compacta && styles.headerTitleCompacto]}>Meraki</Text>
+          <Text style={styles.headerSubtitle}>Poder cuidar a partir do conforto da sua casa</Text>
+        </View>
+
+        <View style={styles.content}>
+          <Text style={[styles.title, compacta && styles.titleCompacto]}>Redefinir senha</Text>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>CPF</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="000.000.000-00"
+              placeholderTextColor="#9aa1af"
+              value={cpf}
+              onChangeText={(texto) => setCpf(formatCpf(texto))}
+              keyboardType="numeric"
+              maxLength={14}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Nova senha</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.inputFlex}
+                placeholder="Sua senha"
+                placeholderTextColor="#9aa1af"
+                value={novaSenha}
+                onChangeText={setNovaSenha}
+                secureTextEntry={!novaSenhaVisivel}
+              />
+              <Pressable onPress={() => setNovaSenhaVisivel((atual) => !atual)} hitSlop={10}>
+                <IconeOlho visivel={novaSenhaVisivel} />
+              </Pressable>
+            </View>
+            <Text style={styles.hintText}>{REGRA_SENHA_MENSAGEM}</Text>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Confirmar senha</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.inputFlex}
+                placeholder="Sua senha"
+                placeholderTextColor="#9aa1af"
+                value={confirmarSenha}
+                onChangeText={setConfirmarSenha}
+                secureTextEntry={!confirmarSenhaVisivel}
+              />
+              <Pressable onPress={() => setConfirmarSenhaVisivel((atual) => !atual)} hitSlop={10}>
+                <IconeOlho visivel={confirmarSenhaVisivel} />
+              </Pressable>
+            </View>
+          </View>
+
+          {mensagemErro ? <Text style={styles.errorText}>{mensagemErro}</Text> : null}
+
+          <View style={styles.spacer} />
+
+          <Pressable
+            style={[styles.submitButton, !podeEnviar && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!podeEnviar}
+          >
+            <Text style={styles.submitButtonText}>{isSubmitting ? 'Salvando...' : 'Confirmar'}</Text>
           </Pressable>
-        ) : null}
-        <Text style={styles.headerTitle}>Meraki</Text>
-        <Text style={styles.headerSubtitle}>Poder cuidar a partir do conforto da sua casa</Text>
-      </View>
-
-      <View style={styles.content}>
-        <Text style={styles.title}>Redefinir senha</Text>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>CPF</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="000.000.000-00"
-            placeholderTextColor="#9aa1af"
-            value={cpf}
-            onChangeText={(texto) => setCpf(formatCpf(texto))}
-            keyboardType="numeric"
-            maxLength={14}
-          />
         </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Nova senha</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.inputFlex}
-              placeholder="Sua senha"
-              placeholderTextColor="#9aa1af"
-              value={novaSenha}
-              onChangeText={setNovaSenha}
-              secureTextEntry={!novaSenhaVisivel}
-            />
-            <Pressable onPress={() => setNovaSenhaVisivel((atual) => !atual)} hitSlop={10}>
-              <IconeOlho visivel={novaSenhaVisivel} />
-            </Pressable>
-          </View>
-          <Text style={styles.hintText}>{REGRA_SENHA_MENSAGEM}</Text>
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Confirmar senha</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.inputFlex}
-              placeholder="Sua senha"
-              placeholderTextColor="#9aa1af"
-              value={confirmarSenha}
-              onChangeText={setConfirmarSenha}
-              secureTextEntry={!confirmarSenhaVisivel}
-            />
-            <Pressable onPress={() => setConfirmarSenhaVisivel((atual) => !atual)} hitSlop={10}>
-              <IconeOlho visivel={confirmarSenhaVisivel} />
-            </Pressable>
-          </View>
-        </View>
-
-        {mensagemErro ? <Text style={styles.errorText}>{mensagemErro}</Text> : null}
-
-        <View style={styles.spacer} />
-
-        <Pressable
-          style={[styles.submitButton, !podeEnviar && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={!podeEnviar}
-        >
-          <Text style={styles.submitButtonText}>{isSubmitting ? 'Salvando...' : 'Confirmar'}</Text>
-        </Pressable>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    width: '100%',
-    maxWidth: 390,
     flex: 1,
-    maxHeight: 720,
-    borderRadius: 22,
+    width: '100%',
     backgroundColor: '#ffffff',
     overflow: 'hidden',
-    shadowColor: '#121826',
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    elevation: 6,
+  },
+  rolagem: {
+    flexGrow: 1,
   },
   header: {
     backgroundColor: '#4467f2',
@@ -164,6 +165,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
+  },
+  headerCompacto: {
+    paddingTop: 20,
+    paddingBottom: 28,
   },
   backButton: {
     alignSelf: 'flex-start',
@@ -183,6 +188,10 @@ const styles = StyleSheet.create({
     lineHeight: 40,
     fontWeight: '800',
   },
+  headerTitleCompacto: {
+    fontSize: 28,
+    lineHeight: 34,
+  },
   headerSubtitle: {
     color: 'rgba(255,255,255,0.9)',
     marginTop: 6,
@@ -191,7 +200,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 22,
     paddingTop: 24,
     paddingBottom: 24,
@@ -202,6 +211,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#4467f2',
     marginBottom: 24,
+  },
+  titleCompacto: {
+    fontSize: 24,
+    lineHeight: 30,
+    marginBottom: 16,
   },
   field: {
     marginBottom: 20,
@@ -235,6 +249,7 @@ const styles = StyleSheet.create({
   },
   inputFlex: {
     flex: 1,
+    minWidth: 0,
     fontSize: 17,
     color: '#20222b',
   },
@@ -252,7 +267,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   spacer: {
-    flex: 1,
+    flexGrow: 1,
+    minHeight: 16,
   },
   submitButton: {
     height: 58,
