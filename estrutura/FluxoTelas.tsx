@@ -24,7 +24,11 @@ import TelaEscolhaAvatar from '../telas/TelaEscolhaAvatar';
 import ModalPremiosTreino from '../telas/premios/ModalPremiosTreino';
 import TelaFeedback from '../telas/TelaFeedback';
 import TelaEngajamento from '../telas/TelaEngajamento';
-import TelaInicio, { MENSAGEM_TREINO_CONCLUIDO_HOJE, type ProximoTreinoResumo } from '../telas/TelaInicio';
+import TelaInicio, {
+  MENSAGEM_LIMITE_TREINOS_SEMANA,
+  MENSAGEM_TREINO_CONCLUIDO_HOJE,
+  type ProximoTreinoResumo,
+} from '../telas/TelaInicio';
 import TelaInstrucao from '../telas/TelaInstrucao';
 import TelaLogin from '../telas/TelaLogin';
 import TelaPerfil from '../telas/TelaPerfil';
@@ -32,6 +36,7 @@ import TelaRedefinirSenha from '../telas/TelaRedefinirSenha';
 import TelaTreinoExecucao from '../telas/TelaTreinoExecucao';
 import type { ResultadoFeedback } from '../types/premios';
 import type { RegistroExecucao, TreinoDetalhadoDTO, TreinoExercicioDTO } from '../types/treino';
+import { PADDING_SHELL, useDimensoesTela } from '../utils/layoutTela';
 
 type Etapa = 'login' | 'redefinirSenha' | 'escolhaAvatar' | 'app';
 type TrainingStep = 'intro' | 'execucao' | 'feedback';
@@ -61,6 +66,12 @@ function calcularDuracaoSegundos(treino: TreinoDetalhadoDTO | null): number {
 }
 
 export default function FluxoTelas() {
+  const { larguraShell, alturaShell } = useDimensoesTela();
+  const estiloShell = React.useMemo(
+    () => [{ width: larguraShell, height: alturaShell }],
+    [larguraShell, alturaShell],
+  );
+
   const [etapa, setEtapa] = React.useState<Etapa>('login');
   const [abaAtiva, setAbaAtiva] = React.useState<Aba>('inicio');
   const [screenIndex, setScreenIndex] = React.useState<TrainingStep>('intro');
@@ -82,9 +93,13 @@ export default function FluxoTelas() {
   const [treinoError, setTreinoError] = React.useState<string | null>(null);
   const [sessaoId, setSessaoId] = React.useState<number | null>(null);
   // Vem da TelaInicio (que já busca /inicio). Usado pra aba "Treino" do menu
-  // inferior também respeitar a regra de 1 treino por dia, sem entrar na tela
-  // de instrução só pra descobrir o bloqueio no final.
+  // inferior também respeitar 1 treino/dia e o limite de 3 treinos/semana,
+  // sem entrar na tela de instrução só pra descobrir o bloqueio no final.
   const [treinouHoje, setTreinouHoje] = React.useState(false);
+  const [semanaCompleta, setSemanaCompleta] = React.useState(false);
+  /** Contagem local da semana (espelha engajamento); incrementa ao finalizar treino válido. */
+  const [, setTreinosNaSemana] = React.useState(0);
+  const [metaSemana, setMetaSemana] = React.useState(3);
 
   const materiaisTreino = React.useMemo(() => {
     return (treino?.instrucao ?? '')
@@ -113,7 +128,7 @@ export default function FluxoTelas() {
   }, [treino]);
 
   const handleIniciarTreinoPelaHome = () => {
-    if (treinouHoje) {
+    if (treinouHoje || semanaCompleta) {
       return;
     }
     setAbaAtiva('treino');
@@ -131,20 +146,38 @@ export default function FluxoTelas() {
     }
   };
 
+  const recarregarTreinoAtivo = React.useCallback(async (participanteId: number) => {
+    try {
+      const proximo = await buscarTreinoAtivoDoParticipante(participanteId);
+      setTreino(proximo);
+      setTreinoError(null);
+    } catch (error) {
+      setTreinoError(error instanceof Error ? error.message : 'Erro ao carregar o próximo treino');
+    }
+  }, []);
+
   const handleTreinoFinish = (registro: RegistroExecucao, sessaoIdFinalizada: number | null) => {
     setSessaoId(sessaoIdFinalizada);
-    setScreenIndex('feedback');
 
-    // Se a sessão conta (≥ 50%), marca imediatamente pra aba "Treino" e o
-    // card da Início já refletirem a regra sem esperar o próximo GET /inicio.
-    if (treino) {
-      const totalSeries = treino.itens.reduce((soma, item) => soma + item.series, 0);
-      const concluidas = Object.values(registro.itens).filter((s) => s === 'concluida').length;
-      const percentual = totalSeries === 0 ? 0 : (concluidas / totalSeries) * 100;
-      if (percentual >= 50) {
-        setTreinouHoje(true);
-      }
+    const totalSeries = treino?.itens.reduce((soma, item) => soma + item.series, 0) ?? 0;
+    const concluidas = Object.values(registro.itens).filter((s) => s === 'concluida').length;
+    const percentual = totalSeries === 0 ? 0 : (concluidas / totalSeries) * 100;
+
+    // Feedback OMNI/PSE só para treino válido (≥50%). Abaixo disso, finaliza e volta à intro.
+    if (percentual < 50) {
+      setScreenIndex('intro');
+      setAbaAtiva('inicio');
+      return;
     }
+
+    setTreinouHoje(true);
+    // Atualiza meta semanal na hora (sem esperar novo GET /inicio).
+    setTreinosNaSemana((atual) => {
+      const proximos = Math.min(atual + 1, metaSemana);
+      setSemanaCompleta(proximos >= metaSemana);
+      return proximos;
+    });
+    setScreenIndex('feedback');
   };
 
   const handleFeedbackSubmit = async (rating: number) => {
@@ -160,6 +193,11 @@ export default function FluxoTelas() {
       setFeedbackError(null);
       setScreenIndex('intro');
       setAbaAtiva('ranking');
+
+      // Após sessão válida, busca o próximo treino da sequência (A→B→C→A…).
+      if (participante) {
+        void recarregarTreinoAtivo(participante.participanteId);
+      }
     } catch (error) {
       setFeedbackError(
         error instanceof Error ? error.message : 'Não foi possível salvar sua avaliação.',
@@ -179,10 +217,26 @@ export default function FluxoTelas() {
       );
     }
 
-    // Regra: só 1 treino por dia. Se o participante chegou direto pela aba
-    // "Treino" (sem passar pelo card da Início, que já bloqueia o botão),
-    // barra aqui também — antes de entrar na tela de instrução — em vez de só
-    // descobrir isso ao tentar abrir a sessão no backend.
+    // Regras: máx. 3 treinos/semana e 1 treino/dia. Se chegou pela aba "Treino"
+    // (sem passar pelo card da Início), barra aqui antes da instrução.
+    if (semanaCompleta && screenIndex === 'intro') {
+      return (
+        <View style={styles.treinoConcluidoTela}>
+          <View style={styles.treinoConcluidoCartao}>
+            <View style={styles.treinoConcluidoIconeWrap}>
+              <Feather name="check" size={36} color="#ffffff" />
+            </View>
+            <Text style={styles.treinoConcluidoTitulo}>Semana completa</Text>
+            <Text style={styles.treinoConcluidoMensagem}>{MENSAGEM_LIMITE_TREINOS_SEMANA}</Text>
+            <View style={styles.treinoConcluidoBadge}>
+              <Feather name="calendar" size={14} color="#1f7a46" />
+              <Text style={styles.treinoConcluidoBadgeTexto}>Volte na segunda</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     if (treinouHoje && screenIndex === 'intro') {
       return (
         <View style={styles.treinoConcluidoTela}>
@@ -236,8 +290,6 @@ export default function FluxoTelas() {
             emoji={avatarGenero === 'MASCULINO' ? '🏋️' : avatarGenero === 'FEMININO' ? '🧘‍♀️' : '🤖'}
             materiais={materiaisTreino}
             nomeTreino={treino.nome}
-            fase={treino.fase}
-            nivel={treino.nivel}
             quantidadeExercicios={treino.itens.length}
             duracaoTotalSegundos={duracaoTotalTreinoSegundos}
             primaryLabel={treinoLoading ? 'Carregando...' : 'Iniciar treino'}
@@ -262,6 +314,9 @@ export default function FluxoTelas() {
     setTreinoError(null);
     setSessaoId(null);
     setTreinouHoje(false);
+    setSemanaCompleta(false);
+    setTreinosNaSemana(0);
+    setMetaSemana(3);
     setAbaAtiva('treino');
     setScreenIndex('intro');
     setLoginError(null);
@@ -280,56 +335,58 @@ export default function FluxoTelas() {
       <SafeAreaView style={styles.appShell}>
         <StatusBar style="dark" />
         <View style={styles.modalScreen}>
-          <TelaLogin
-            isSubmitting={isLoggingIn}
-            errorMessage={loginError}
-            onForgotPasswordPress={() => setEtapa('redefinirSenha')}
-            onSubmit={async (cpf, senha) => {
-              try {
-                setIsLoggingIn(true);
-                const participanteLogado = await login(cpf, senha);
-                setLoginError(null);
-                setParticipante(participanteLogado);
-
-                // Lembrete padrão, lembrete repetido e lembrete semanal (push fora do app).
-                void registrarNotificacoesPush(participanteLogado.participanteId);
-
+          <View style={[styles.phoneShell, estiloShell]}>
+            <TelaLogin
+              isSubmitting={isLoggingIn}
+              errorMessage={loginError}
+              onForgotPasswordPress={() => setEtapa('redefinirSenha')}
+              onSubmit={async (cpf, senha) => {
                 try {
-                  const perfil = await buscarPerfilParticipante(participanteLogado.participanteId);
-                  if (perfil.avatarGenero) {
-                    setAvatarGenero(perfil.avatarGenero);
-                    setNomeAvatar(perfil.nomeAvatar ?? '');
+                  setIsLoggingIn(true);
+                  const participanteLogado = await login(cpf, senha);
+                  setLoginError(null);
+                  setParticipante(participanteLogado);
+
+                  // Lembrete padrão, lembrete repetido e lembrete semanal (push fora do app).
+                  void registrarNotificacoesPush(participanteLogado.participanteId);
+
+                  try {
+                    const perfil = await buscarPerfilParticipante(participanteLogado.participanteId);
+                    if (perfil.avatarGenero) {
+                      setAvatarGenero(perfil.avatarGenero);
+                      setNomeAvatar(perfil.nomeAvatar ?? '');
+                      setEtapa('app');
+                    } else {
+                      setEtapa('escolhaAvatar');
+                    }
+                  } catch {
+                    // Falha ao buscar o perfil (ex.: rede instável) não significa que o
+                    // participante nunca configurou avatar — não force a reconfiguração.
                     setEtapa('app');
-                  } else {
-                    setEtapa('escolhaAvatar');
                   }
-                } catch {
-                  // Falha ao buscar o perfil (ex.: rede instável) não significa que o
-                  // participante nunca configurou avatar — não force a reconfiguração.
-                  setEtapa('app');
-                }
 
-                setTreinoLoading(true);
-                setTreinoError(null);
-                try {
-                  const treinoDoParticipante = await buscarTreinoAtivoDoParticipante(
-                    participanteLogado.participanteId,
-                  );
-                  setTreino(treinoDoParticipante);
+                  setTreinoLoading(true);
+                  setTreinoError(null);
+                  try {
+                    const treinoDoParticipante = await buscarTreinoAtivoDoParticipante(
+                      participanteLogado.participanteId,
+                    );
+                    setTreino(treinoDoParticipante);
+                  } catch (error) {
+                    setTreinoError(
+                      error instanceof Error ? error.message : 'Erro ao carregar o treino',
+                    );
+                  } finally {
+                    setTreinoLoading(false);
+                  }
                 } catch (error) {
-                  setTreinoError(
-                    error instanceof Error ? error.message : 'Erro ao carregar o treino',
-                  );
+                  setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar.');
                 } finally {
-                  setTreinoLoading(false);
+                  setIsLoggingIn(false);
                 }
-              } catch (error) {
-                setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar.');
-              } finally {
-                setIsLoggingIn(false);
-              }
-            }}
-          />
+              }}
+            />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -340,25 +397,27 @@ export default function FluxoTelas() {
       <SafeAreaView style={styles.appShell}>
         <StatusBar style="dark" />
         <View style={styles.modalScreen}>
-          <TelaRedefinirSenha
-            isSubmitting={isResettingPassword}
-            errorMessage={redefinirSenhaError}
-            onBackPress={() => setEtapa('login')}
-            onSubmit={async (cpf, novaSenha) => {
-              try {
-                setIsResettingPassword(true);
-                await redefinirSenha(cpf, novaSenha);
-                setRedefinirSenhaError(null);
-                setEtapa('login');
-              } catch (error) {
-                setRedefinirSenhaError(
-                  error instanceof Error ? error.message : 'Não foi possível redefinir a senha.',
-                );
-              } finally {
-                setIsResettingPassword(false);
-              }
-            }}
-          />
+          <View style={[styles.phoneShell, estiloShell]}>
+            <TelaRedefinirSenha
+              isSubmitting={isResettingPassword}
+              errorMessage={redefinirSenhaError}
+              onBackPress={() => setEtapa('login')}
+              onSubmit={async (cpf, novaSenha, dataNascimento) => {
+                try {
+                  setIsResettingPassword(true);
+                  await redefinirSenha(cpf, novaSenha, dataNascimento);
+                  setRedefinirSenhaError(null);
+                  setEtapa('login');
+                } catch (error) {
+                  setRedefinirSenhaError(
+                    error instanceof Error ? error.message : 'Os dados informados não conferem',
+                  );
+                } finally {
+                  setIsResettingPassword(false);
+                }
+              }}
+            />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -369,38 +428,40 @@ export default function FluxoTelas() {
       <SafeAreaView style={styles.appShell}>
         <StatusBar style="dark" />
         <View style={styles.modalScreen}>
-          <TelaEscolhaAvatar
-            isSubmitting={isSavingAvatar}
-            errorMessage={avatarError}
-            initialGenero={avatarGenero}
-            initialNomeAvatar={nomeAvatar}
-            onBackPress={() => setEtapa(participante ? 'app' : 'login')}
-            onContinue={async (genero, nome) => {
-              if (participante) {
-                try {
-                  setIsSavingAvatar(true);
-                  await salvarAvatar(participante.participanteId, genero, nome);
+          <View style={[styles.phoneShell, estiloShell]}>
+            <TelaEscolhaAvatar
+              isSubmitting={isSavingAvatar}
+              errorMessage={avatarError}
+              initialGenero={avatarGenero}
+              initialNomeAvatar={nomeAvatar}
+              onBackPress={() => setEtapa(participante ? 'app' : 'login')}
+              onContinue={async (genero, nome) => {
+                if (participante) {
+                  try {
+                    setIsSavingAvatar(true);
+                    await salvarAvatar(participante.participanteId, genero, nome);
+                    setAvatarGenero(genero);
+                    setNomeAvatar(nome);
+                    setAvatarError(null);
+                    setEtapa('app');
+                  } catch (error) {
+                    setAvatarError(
+                      error instanceof Error
+                        ? error.message
+                        : 'Não foi possível salvar o avatar.',
+                    );
+                  } finally {
+                    setIsSavingAvatar(false);
+                  }
+                } else {
                   setAvatarGenero(genero);
                   setNomeAvatar(nome);
                   setAvatarError(null);
                   setEtapa('app');
-                } catch (error) {
-                  setAvatarError(
-                    error instanceof Error
-                      ? error.message
-                      : 'Não foi possível salvar o avatar.',
-                  );
-                } finally {
-                  setIsSavingAvatar(false);
                 }
-              } else {
-                setAvatarGenero(genero);
-                setNomeAvatar(nome);
-                setAvatarError(null);
-                setEtapa('app');
-              }
-            }}
-          />
+              }}
+            />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -413,7 +474,7 @@ export default function FluxoTelas() {
       <StatusBar style="dark" />
 
       <View style={styles.phoneShellWrap}>
-        <View style={styles.phoneShell}>
+        <View style={[styles.phoneShell, estiloShell]}>
           <View style={styles.phoneContent}>
             {abaAtiva === 'ranking' && (
               <View style={styles.rankingArea}>
@@ -447,6 +508,16 @@ export default function FluxoTelas() {
                   onAbrirPerfil={() => setAbaAtiva('perfil')}
                   visivel={abaAtiva === 'inicio'}
                   onTreinouHojeChange={setTreinouHoje}
+                  onSemanaChange={({ completa, realizados, meta }) => {
+                    setSemanaCompleta(completa);
+                    setTreinosNaSemana(realizados);
+                    setMetaSemana(meta);
+                  }}
+                  onRefazerRespondido={() => {
+                    if (participante) {
+                      void recarregarTreinoAtivo(participante.participanteId);
+                    }
+                  }}
                 />
               </View>
             )}
@@ -504,13 +575,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: PADDING_SHELL,
+    paddingVertical: PADDING_SHELL,
   },
   phoneShell: {
-    width: '100%',
-    maxWidth: 390,
-    height: 720,
     borderRadius: 22,
     backgroundColor: '#ffffff',
     overflow: 'hidden',
@@ -541,9 +609,10 @@ const styles = StyleSheet.create({
   },
   modalScreen: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: PADDING_SHELL,
+    paddingVertical: PADDING_SHELL,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   trainingArea: {
     flex: 1,

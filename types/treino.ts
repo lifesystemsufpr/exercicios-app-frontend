@@ -25,6 +25,8 @@ export interface TreinoDetalhadoDTO {
   instrucao: string;
   fase?: FaseTreino;
   nivel?: number;
+  /** Ordem na sequência da fase+nível (1, 2, 3…). */
+  ordem?: number;
   duracaoEstimadaMinutos?: number;
   itens: TreinoExercicioDTO[];
 }

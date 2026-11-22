@@ -233,7 +233,6 @@ export default function TelaFeedback({
 const styles = StyleSheet.create({
   feedbackCard: {
     width: '100%',
-    maxWidth: 390,
     flex: 1,
     backgroundColor: '#ffffff',
   },

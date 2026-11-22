@@ -39,14 +39,15 @@ export default function InstrucoesExercicio({ instrucoes }: InstrucoesExercicioP
 
 const styles = StyleSheet.create({
   container: {
+    flexShrink: 0,
     marginHorizontal: 20,
-    marginTop: 12,
+    marginBottom: 4,
   },
   toggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   toggleTexto: {
     fontSize: 13,
@@ -58,8 +59,8 @@ const styles = StyleSheet.create({
     color: cores.azul,
   },
   lista: {
-    marginTop: 6,
-    gap: 6,
+    marginTop: 4,
+    gap: 4,
   },
   item: {
     flexDirection: 'row',

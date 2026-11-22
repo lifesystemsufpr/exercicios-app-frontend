@@ -8,23 +8,35 @@ type StatsRowProps = {
   totalSeries: number;
   duracaoSegundos: number;
   descansoSegundos: number;
+  compacta?: boolean;
 };
 
-export default function StatsRow({ serieAtual, totalSeries, duracaoSegundos, descansoSegundos }: StatsRowProps) {
+export default function StatsRow({
+  serieAtual,
+  totalSeries,
+  duracaoSegundos,
+  descansoSegundos,
+  compacta = false,
+}: StatsRowProps) {
   return (
-    <View style={styles.container}>
-      <StatBox label="Série" valor={`${serieAtual}/${totalSeries}`} />
-      <StatBox label="Duração" valor={`${duracaoSegundos}s`} />
-      <StatBox label="Descanso" valor={`${descansoSegundos}s`} />
+    <View style={[styles.container, compacta && styles.containerCompacto]}>
+      <StatBox label="Série" valor={`${serieAtual}/${totalSeries}`} compacta={compacta} />
+      <StatBox label="Duração" valor={`${duracaoSegundos}s`} compacta={compacta} />
+      <StatBox label="Descanso" valor={`${descansoSegundos}s`} compacta={compacta} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flexShrink: 0,
     flexDirection: 'row',
     gap: 10,
     marginHorizontal: 20,
-    marginTop: 20,
+    marginBottom: 6,
+  },
+  containerCompacto: {
+    gap: 8,
+    marginBottom: 4,
   },
 });

@@ -87,8 +87,6 @@ export default function ExercicioMidia({
 }: ExercicioMidiaProps) {
   const taxaReproducao = typeof velocidade === 'number' && velocidade > 0 ? velocidade : 1;
   const [erroVideo, setErroVideo] = React.useState(false);
-  // Vídeos gravados em pé (retrato) ganham uma área mais alta; os deitados mantêm a altura padrão.
-  const [videoEmPe, setVideoEmPe] = React.useState(false);
   const nativeVideoRef = React.useRef<any>(null);
   const webVideoRef = React.useRef<any>(null);
   const isYouTube = videoUrl ? isYouTubeUrl(videoUrl) : false;
@@ -134,12 +132,11 @@ export default function ExercicioMidia({
   }, [aplicarVelocidadeWeb, sourceUri]);
 
   React.useEffect(() => {
-    setVideoEmPe(false);
     setErroVideo(false);
   }, [sourceUri]);
 
   return (
-    <View style={[styles.container, videoEmPe && styles.containerVideoEmPe]}>
+    <View style={styles.container}>
       {sourceUri && !erroVideo ? (
         isYouTube ? (
           Platform.OS === 'web' ? (
@@ -161,41 +158,33 @@ export default function ExercicioMidia({
               originWhitelist={['*']}
             />
           )
+        ) : Platform.OS === 'web' ? (
+          <video
+            ref={webVideoRef}
+            playsInline
+            muted
+            preload="metadata"
+            autoPlay={!isPaused}
+            loop={shouldLoopVideo}
+            src={sourceUri}
+            style={estiloVideoWeb}
+            onLoadedMetadata={() => {
+              aplicarVelocidadeWeb();
+            }}
+            onError={() => setErroVideo(true)}
+          />
         ) : (
-          Platform.OS === 'web' ? (
-            <video
-              ref={webVideoRef}
-              playsInline
-              muted
-              preload="metadata"
-              autoPlay={!isPaused}
-              loop={shouldLoopVideo}
-              src={sourceUri}
-              style={estiloVideoWeb}
-              onLoadedMetadata={(evento) => {
-                aplicarVelocidadeWeb();
-                const { videoWidth, videoHeight } = evento.currentTarget;
-                setVideoEmPe(videoHeight > videoWidth);
-              }}
-              onError={() => setErroVideo(true)}
-            />
-          ) : (
-            <Video
-              ref={nativeVideoRef}
-              source={{ uri: sourceUri }}
-              style={styles.video}
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay={!isPaused}
-              isLooping={shouldLoopVideo}
-              rate={taxaReproducao}
-              shouldCorrectPitch
-              onReadyForDisplay={(evento) => {
-                const { width, height } = evento.naturalSize;
-                setVideoEmPe(height > width);
-              }}
-              onError={() => setErroVideo(true)}
-            />
-          )
+          <Video
+            ref={nativeVideoRef}
+            source={{ uri: sourceUri }}
+            style={styles.video}
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay={!isPaused}
+            isLooping={shouldLoopVideo}
+            rate={taxaReproducao}
+            shouldCorrectPitch
+            onError={() => setErroVideo(true)}
+          />
         )
       ) : (
         <View style={styles.placeholder}>
@@ -205,9 +194,6 @@ export default function ExercicioMidia({
           {videoUrl ? <Text style={styles.placeholderText}>{videoUrl}</Text> : null}
         </View>
       )}
-      {Platform.OS === 'web' && isYouTube ? (
-        <Text style={styles.debugText}>YouTube embed: {sourceUri}</Text>
-      ) : null}
     </View>
   );
 }
@@ -222,37 +208,28 @@ const estiloVideoWeb: React.CSSProperties = {
 };
 
 const styles = StyleSheet.create({
+  // O pai define a área; CONTAIN / object-fit:contain mantém proporção sem cortar.
   container: {
-    marginHorizontal: 20,
-    height: 260,
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
     borderRadius: 18,
-    // Mesmo cinza do fundo dos vídeos dos exercícios: sem faixas claras nas laterais.
     backgroundColor: '#3b3b3b',
     overflow: 'hidden',
   },
-  containerVideoEmPe: {
-    height: 360,
-  },
   video: {
-    flex: 1,
     width: '100%',
+    height: '100%',
   },
   placeholder: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 12,
   },
   placeholderText: {
     color: '#c9ccd3',
     fontSize: 16,
     textAlign: 'center',
-  },
-  debugText: {
-    position: 'absolute',
-    bottom: 8,
-    left: 12,
-    right: 12,
-    fontSize: 11,
-    color: '#5f6773',
   },
 });

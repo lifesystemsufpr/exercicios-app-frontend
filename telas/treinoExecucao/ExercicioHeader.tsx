@@ -7,18 +7,27 @@ type ExercicioHeaderProps = {
   indice: number;
   total: number;
   nome: string;
+  compacta?: boolean;
   onBackPress?: () => void;
 };
 
-export default function ExercicioHeader({ indice, total, nome, onBackPress }: ExercicioHeaderProps) {
+export default function ExercicioHeader({
+  indice,
+  total,
+  nome,
+  compacta = false,
+  onBackPress,
+}: ExercicioHeaderProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compacta && styles.containerCompacto]}>
       <Pressable onPress={onBackPress} hitSlop={12} style={styles.backButton}>
         <Text style={styles.backArrow}>←</Text>
       </Pressable>
-      <View>
+      <View style={styles.textos}>
         <Text style={styles.legenda}>{`Exercício ${indice}/${total}`}</Text>
-        <Text style={styles.titulo}>{nome}</Text>
+        <Text style={[styles.titulo, compacta && styles.tituloCompacto]} numberOfLines={2}>
+          {nome}
+        </Text>
       </View>
     </View>
   );
@@ -26,11 +35,16 @@ export default function ExercicioHeader({ indice, total, nome, onBackPress }: Ex
 
 const styles = StyleSheet.create({
   container: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 8,
+  },
+  containerCompacto: {
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   backButton: {
     marginRight: 12,
@@ -41,6 +55,10 @@ const styles = StyleSheet.create({
     color: cores.texto,
     fontWeight: '600',
   },
+  textos: {
+    flex: 1,
+    minWidth: 0,
+  },
   legenda: {
     fontSize: 12,
     color: cores.textoSecundario,
@@ -50,5 +68,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: cores.texto,
+  },
+  tituloCompacto: {
+    fontSize: 16,
   },
 });

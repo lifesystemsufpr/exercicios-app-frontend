@@ -27,9 +27,9 @@ export interface InicioParticipanteDTO {
   /** Se o participante já completou as 3 sessões de treino da semana atual. */
   semanaCompleta: boolean;
   /**
-   * Pergunta "deseja refazer esse treino?" (item 3 do documento de mensagens),
-   * exibida uma única vez quando a última sessão ficou entre 1% e 49% do treino.
-   * Nulo quando não há pergunta pendente.
+   * Opção opcional "deseja refazer esse treino?", exibida uma única vez quando
+   * a última sessão ficou com ≥50% (já conta). Abaixo de 50% o refazer é
+   * obrigatório e este campo fica nulo.
    */
   perguntaRefazer: PerguntaRefazerDTO | null;
 }

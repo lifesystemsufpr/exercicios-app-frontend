@@ -1,16 +1,12 @@
 import React from 'react';
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { FaseTreino } from '../types/treino';
-
 type TelaInstrucaoProps = {
   emoji: string;
   primaryLabel: string;
   primaryVariant?: 'outline' | 'solid';
   materiais: string[];
   nomeTreino: string;
-  fase?: FaseTreino;
-  nivel?: number;
   quantidadeExercicios: number;
   duracaoTotalSegundos: number;
   onBackPress?: () => void;
@@ -18,12 +14,6 @@ type TelaInstrucaoProps = {
 };
 
 const TOTAL_CARDS = 2;
-
-const LABEL_FASE: Record<FaseTreino, string> = {
-  INICIANTE: 'INICIANTE',
-  INTERMEDIARIO: 'INTERMEDIÁRIO',
-  AVANCADO: 'AVANÇADO',
-};
 
 function formatarDuracao(segundos: number): string {
   if (!Number.isFinite(segundos) || segundos <= 0) {
@@ -44,8 +34,6 @@ export default function TelaInstrucao({
   primaryVariant = 'solid',
   materiais,
   nomeTreino,
-  fase,
-  nivel,
   quantidadeExercicios,
   duracaoTotalSegundos,
   onBackPress,
@@ -105,16 +93,11 @@ export default function TelaInstrucao({
     [materiais],
   );
 
-  const tituloHeader = React.useMemo(() => {
-    const partes: string[] = [nomeTreino.trim() || 'Treino'];
-    if (typeof nivel === 'number') {
-      partes.push(`NÍVEL ${nivel}`);
-    }
-    if (fase) {
-      partes.push(LABEL_FASE[fase]);
-    }
-    return partes.join(' - ').toUpperCase();
-  }, [nomeTreino, nivel, fase]);
+  // Só o nome do plano — fase/nível já vêm no nome cadastrado (evita "… TREINO C - NÍVEL 1 - INICIANTE").
+  const tituloHeader = React.useMemo(
+    () => (nomeTreino.trim() || 'Treino').toUpperCase(),
+    [nomeTreino],
+  );
 
   const subtituloHeader = `${quantidadeExercicios} ${
     quantidadeExercicios === 1 ? 'exercício' : 'exercícios'
