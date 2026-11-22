@@ -24,7 +24,11 @@ import TelaEscolhaAvatar from '../telas/TelaEscolhaAvatar';
 import ModalPremiosTreino from '../telas/premios/ModalPremiosTreino';
 import TelaFeedback from '../telas/TelaFeedback';
 import TelaEngajamento from '../telas/TelaEngajamento';
-import TelaInicio, { MENSAGEM_TREINO_CONCLUIDO_HOJE, type ProximoTreinoResumo } from '../telas/TelaInicio';
+import TelaInicio, {
+  MENSAGEM_LIMITE_TREINOS_SEMANA,
+  MENSAGEM_TREINO_CONCLUIDO_HOJE,
+  type ProximoTreinoResumo,
+} from '../telas/TelaInicio';
 import TelaInstrucao from '../telas/TelaInstrucao';
 import TelaLogin from '../telas/TelaLogin';
 import TelaPerfil from '../telas/TelaPerfil';
@@ -89,9 +93,13 @@ export default function FluxoTelas() {
   const [treinoError, setTreinoError] = React.useState<string | null>(null);
   const [sessaoId, setSessaoId] = React.useState<number | null>(null);
   // Vem da TelaInicio (que já busca /inicio). Usado pra aba "Treino" do menu
-  // inferior também respeitar a regra de 1 treino por dia, sem entrar na tela
-  // de instrução só pra descobrir o bloqueio no final.
+  // inferior também respeitar 1 treino/dia e o limite de 3 treinos/semana,
+  // sem entrar na tela de instrução só pra descobrir o bloqueio no final.
   const [treinouHoje, setTreinouHoje] = React.useState(false);
+  const [semanaCompleta, setSemanaCompleta] = React.useState(false);
+  /** Contagem local da semana (espelha engajamento); incrementa ao finalizar treino válido. */
+  const [, setTreinosNaSemana] = React.useState(0);
+  const [metaSemana, setMetaSemana] = React.useState(3);
 
   const materiaisTreino = React.useMemo(() => {
     return (treino?.instrucao ?? '')
@@ -120,7 +128,7 @@ export default function FluxoTelas() {
   }, [treino]);
 
   const handleIniciarTreinoPelaHome = () => {
-    if (treinouHoje) {
+    if (treinouHoje || semanaCompleta) {
       return;
     }
     setAbaAtiva('treino');
@@ -138,20 +146,38 @@ export default function FluxoTelas() {
     }
   };
 
+  const recarregarTreinoAtivo = React.useCallback(async (participanteId: number) => {
+    try {
+      const proximo = await buscarTreinoAtivoDoParticipante(participanteId);
+      setTreino(proximo);
+      setTreinoError(null);
+    } catch (error) {
+      setTreinoError(error instanceof Error ? error.message : 'Erro ao carregar o próximo treino');
+    }
+  }, []);
+
   const handleTreinoFinish = (registro: RegistroExecucao, sessaoIdFinalizada: number | null) => {
     setSessaoId(sessaoIdFinalizada);
-    setScreenIndex('feedback');
 
-    // Se a sessão conta (≥ 50%), marca imediatamente pra aba "Treino" e o
-    // card da Início já refletirem a regra sem esperar o próximo GET /inicio.
-    if (treino) {
-      const totalSeries = treino.itens.reduce((soma, item) => soma + item.series, 0);
-      const concluidas = Object.values(registro.itens).filter((s) => s === 'concluida').length;
-      const percentual = totalSeries === 0 ? 0 : (concluidas / totalSeries) * 100;
-      if (percentual >= 50) {
-        setTreinouHoje(true);
-      }
+    const totalSeries = treino?.itens.reduce((soma, item) => soma + item.series, 0) ?? 0;
+    const concluidas = Object.values(registro.itens).filter((s) => s === 'concluida').length;
+    const percentual = totalSeries === 0 ? 0 : (concluidas / totalSeries) * 100;
+
+    // Feedback OMNI/PSE só para treino válido (≥50%). Abaixo disso, finaliza e volta à intro.
+    if (percentual < 50) {
+      setScreenIndex('intro');
+      setAbaAtiva('inicio');
+      return;
     }
+
+    setTreinouHoje(true);
+    // Atualiza meta semanal na hora (sem esperar novo GET /inicio).
+    setTreinosNaSemana((atual) => {
+      const proximos = Math.min(atual + 1, metaSemana);
+      setSemanaCompleta(proximos >= metaSemana);
+      return proximos;
+    });
+    setScreenIndex('feedback');
   };
 
   const handleFeedbackSubmit = async (rating: number) => {
@@ -167,6 +193,11 @@ export default function FluxoTelas() {
       setFeedbackError(null);
       setScreenIndex('intro');
       setAbaAtiva('ranking');
+
+      // Após sessão válida, busca o próximo treino da sequência (A→B→C→A…).
+      if (participante) {
+        void recarregarTreinoAtivo(participante.participanteId);
+      }
     } catch (error) {
       setFeedbackError(
         error instanceof Error ? error.message : 'Não foi possível salvar sua avaliação.',
@@ -186,10 +217,26 @@ export default function FluxoTelas() {
       );
     }
 
-    // Regra: só 1 treino por dia. Se o participante chegou direto pela aba
-    // "Treino" (sem passar pelo card da Início, que já bloqueia o botão),
-    // barra aqui também — antes de entrar na tela de instrução — em vez de só
-    // descobrir isso ao tentar abrir a sessão no backend.
+    // Regras: máx. 3 treinos/semana e 1 treino/dia. Se chegou pela aba "Treino"
+    // (sem passar pelo card da Início), barra aqui antes da instrução.
+    if (semanaCompleta && screenIndex === 'intro') {
+      return (
+        <View style={styles.treinoConcluidoTela}>
+          <View style={styles.treinoConcluidoCartao}>
+            <View style={styles.treinoConcluidoIconeWrap}>
+              <Feather name="check" size={36} color="#ffffff" />
+            </View>
+            <Text style={styles.treinoConcluidoTitulo}>Semana completa</Text>
+            <Text style={styles.treinoConcluidoMensagem}>{MENSAGEM_LIMITE_TREINOS_SEMANA}</Text>
+            <View style={styles.treinoConcluidoBadge}>
+              <Feather name="calendar" size={14} color="#1f7a46" />
+              <Text style={styles.treinoConcluidoBadgeTexto}>Volte na segunda</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     if (treinouHoje && screenIndex === 'intro') {
       return (
         <View style={styles.treinoConcluidoTela}>
@@ -243,8 +290,6 @@ export default function FluxoTelas() {
             emoji={avatarGenero === 'MASCULINO' ? '🏋️' : avatarGenero === 'FEMININO' ? '🧘‍♀️' : '🤖'}
             materiais={materiaisTreino}
             nomeTreino={treino.nome}
-            fase={treino.fase}
-            nivel={treino.nivel}
             quantidadeExercicios={treino.itens.length}
             duracaoTotalSegundos={duracaoTotalTreinoSegundos}
             primaryLabel={treinoLoading ? 'Carregando...' : 'Iniciar treino'}
@@ -269,6 +314,9 @@ export default function FluxoTelas() {
     setTreinoError(null);
     setSessaoId(null);
     setTreinouHoje(false);
+    setSemanaCompleta(false);
+    setTreinosNaSemana(0);
+    setMetaSemana(3);
     setAbaAtiva('treino');
     setScreenIndex('intro');
     setLoginError(null);
@@ -354,15 +402,15 @@ export default function FluxoTelas() {
               isSubmitting={isResettingPassword}
               errorMessage={redefinirSenhaError}
               onBackPress={() => setEtapa('login')}
-              onSubmit={async (cpf, novaSenha) => {
+              onSubmit={async (cpf, novaSenha, dataNascimento) => {
                 try {
                   setIsResettingPassword(true);
-                  await redefinirSenha(cpf, novaSenha);
+                  await redefinirSenha(cpf, novaSenha, dataNascimento);
                   setRedefinirSenhaError(null);
                   setEtapa('login');
                 } catch (error) {
                   setRedefinirSenhaError(
-                    error instanceof Error ? error.message : 'Não foi possível redefinir a senha.',
+                    error instanceof Error ? error.message : 'Os dados informados não conferem',
                   );
                 } finally {
                   setIsResettingPassword(false);
@@ -460,6 +508,16 @@ export default function FluxoTelas() {
                   onAbrirPerfil={() => setAbaAtiva('perfil')}
                   visivel={abaAtiva === 'inicio'}
                   onTreinouHojeChange={setTreinouHoje}
+                  onSemanaChange={({ completa, realizados, meta }) => {
+                    setSemanaCompleta(completa);
+                    setTreinosNaSemana(realizados);
+                    setMetaSemana(meta);
+                  }}
+                  onRefazerRespondido={() => {
+                    if (participante) {
+                      void recarregarTreinoAtivo(participante.participanteId);
+                    }
+                  }}
                 />
               </View>
             )}

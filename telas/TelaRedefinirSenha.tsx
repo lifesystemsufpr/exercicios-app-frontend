@@ -1,22 +1,59 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextStyle,
+} from 'react-native';
 
 import { formatCpf } from '../utils/formatCpf';
+import { dataNascimentoParaIso, formatDataNascimento } from '../utils/formatDataNascimento';
 import { useDimensoesTela } from '../utils/layoutTela';
-import IconeOlho from './IconeOlho';
 
 type TelaRedefinirSenhaProps = {
-  onSubmit?: (cpf: string, novaSenha: string) => void | Promise<void>;
+  onSubmit?: (cpf: string, novaSenha: string, dataNascimento: string) => void | Promise<void>;
   onBackPress?: () => void;
   isSubmitting?: boolean;
   errorMessage?: string | null;
 };
+
+type CampoFoco = 'cpf' | 'nascimento' | 'novaSenha' | 'confirmarSenha' | null;
 
 const REGRA_SENHA_MENSAGEM = 'A senha deve ter pelo menos 8 caracteres, com letras e números';
 
 function senhaAtendeRegra(senha: string): boolean {
   return senha.length >= 8 && /[a-zA-Z]/.test(senha) && /[0-9]/.test(senha);
 }
+
+if (Platform.OS === 'web' && typeof document !== 'undefined' && !document.getElementById('estilos-campo-senha')) {
+  const estilo = document.createElement('style');
+  estilo.id = 'estilos-campo-senha';
+  estilo.textContent = 'input::-ms-reveal, input::-ms-clear { display: none; }';
+  document.head.appendChild(estilo);
+}
+
+const semContornoWeb = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : null;
+
+const cores = {
+  destaque: '#3352e8',
+  destaqueTexto: '#2f4ee0',
+  fundo: '#f4f6fb',
+  texto: '#1d2433',
+  textoApoio: '#4b5366',
+  textoSuave: '#5a6273',
+  placeholder: '#7a8296',
+  borda: '#cfd5e3',
+  bordaFoco: '#3352e8',
+  erro: '#c0392b',
+  erroFundo: '#fdecec',
+  erroBorda: '#e5a3a3',
+  erroTexto: '#8a1c13',
+  botaoMostrarFundo: '#eef1fb',
+};
 
 export default function TelaRedefinirSenha({
   onSubmit,
@@ -26,13 +63,21 @@ export default function TelaRedefinirSenha({
 }: TelaRedefinirSenhaProps) {
   const { compacta } = useDimensoesTela();
   const [cpf, setCpf] = React.useState('');
+  const [dataNascimento, setDataNascimento] = React.useState('');
   const [novaSenha, setNovaSenha] = React.useState('');
   const [confirmarSenha, setConfirmarSenha] = React.useState('');
   const [novaSenhaVisivel, setNovaSenhaVisivel] = React.useState(false);
   const [confirmarSenhaVisivel, setConfirmarSenhaVisivel] = React.useState(false);
   const [erroValidacao, setErroValidacao] = React.useState<string | null>(null);
+  const [campoEmFoco, setCampoEmFoco] = React.useState<CampoFoco>(null);
+
+  const nascimentoRef = React.useRef<TextInput>(null);
+  const novaSenhaRef = React.useRef<TextInput>(null);
+  const confirmarSenhaRef = React.useRef<TextInput>(null);
 
   const podeEnviar = Boolean(onSubmit) && !isSubmitting;
+  const mensagemErro = erroValidacao ?? errorMessage;
+  const temErro = Boolean(mensagemErro);
 
   const handleSubmit = () => {
     if (!podeEnviar || !onSubmit) {
@@ -43,6 +88,17 @@ export default function TelaRedefinirSenha({
 
     if (cpfSomenteDigitos.length !== 11) {
       setErroValidacao('Informe um CPF válido');
+      return;
+    }
+
+    if (!dataNascimento.trim()) {
+      setErroValidacao('Informe a data de nascimento');
+      return;
+    }
+
+    const dataNascimentoIso = dataNascimentoParaIso(dataNascimento);
+    if (!dataNascimentoIso) {
+      setErroValidacao('Informe uma data de nascimento válida');
       return;
     }
 
@@ -57,93 +113,179 @@ export default function TelaRedefinirSenha({
     }
 
     setErroValidacao(null);
-    void onSubmit(cpfSomenteDigitos, novaSenha);
+    void onSubmit(cpfSomenteDigitos, novaSenha, dataNascimentoIso);
   };
 
-  const mensagemErro = erroValidacao ?? errorMessage;
+  const estiloCampo = (campo: Exclude<CampoFoco, null>) => [
+    styles.campo,
+    compacta && styles.campoCompacto,
+    temErro && styles.campoErro,
+    campoEmFoco === campo && styles.campoFoco,
+  ];
 
   return (
     <View style={styles.card}>
-      <ScrollView
-        contentContainerStyle={styles.rolagem}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.header, compacta && styles.headerCompacto]}>
-          {onBackPress ? (
-            <Pressable onPress={onBackPress} hitSlop={12} style={styles.backButton}>
-              <Text style={styles.backArrow}>←</Text>
-            </Pressable>
-          ) : null}
-          <Text style={[styles.headerTitle, compacta && styles.headerTitleCompacto]}>Meraki</Text>
-          <Text style={styles.headerSubtitle}>Poder cuidar a partir do conforto da sua casa</Text>
-        </View>
+      <View style={[styles.cabecalho, compacta && styles.cabecalhoCompacto]}>
+        {onBackPress ? (
+          <Pressable
+            onPress={onBackPress}
+            hitSlop={12}
+            style={styles.botaoVoltar}
+            accessibilityRole="button"
+            accessibilityLabel="Voltar"
+          >
+            <MaterialCommunityIcons name="arrow-left" size={26} color="#ffffff" />
+          </Pressable>
+        ) : null}
+        <Text style={[styles.nomeApp, compacta && styles.nomeAppCompacto]} accessibilityRole="header">
+          Meraki
+        </Text>
+        <Text style={styles.slogan}>Seu treino em casa, no seu ritmo</Text>
+      </View>
 
-        <View style={styles.content}>
-          <Text style={[styles.title, compacta && styles.titleCompacto]}>Redefinir senha</Text>
+      <View style={[styles.formulario, compacta && styles.formularioCompacto]}>
+        {temErro ? (
+          <View style={styles.alertaErro} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <MaterialCommunityIcons name="alert-circle-outline" size={22} color={cores.erro} />
+            <Text style={styles.alertaErroTexto}>{mensagemErro}</Text>
+          </View>
+        ) : (
+          <View style={styles.saudacao}>
+            <Text style={[styles.titulo, compacta && styles.tituloCompacto]}>Redefinir senha</Text>
+            <Text style={styles.subtitulo}>Confirme seus dados para criar uma nova senha.</Text>
+          </View>
+        )}
 
-          <View style={styles.field}>
-            <Text style={styles.label}>CPF</Text>
+        <View style={styles.grupoCampo}>
+          <Text style={styles.rotulo}>CPF</Text>
+          <View style={estiloCampo('cpf')}>
+            <MaterialCommunityIcons name="account-outline" size={24} color={cores.textoSuave} />
             <TextInput
-              style={styles.input}
+              style={[styles.entrada, semContornoWeb]}
               placeholder="000.000.000-00"
-              placeholderTextColor="#9aa1af"
+              placeholderTextColor={cores.placeholder}
               value={cpf}
               onChangeText={(texto) => setCpf(formatCpf(texto))}
               keyboardType="numeric"
               maxLength={14}
+              returnKeyType="next"
+              onSubmitEditing={() => nascimentoRef.current?.focus()}
+              onFocus={() => setCampoEmFoco('cpf')}
+              onBlur={() => setCampoEmFoco(null)}
+              accessibilityLabel="CPF"
             />
           </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Nova senha</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.inputFlex}
-                placeholder="Sua senha"
-                placeholderTextColor="#9aa1af"
-                value={novaSenha}
-                onChangeText={setNovaSenha}
-                secureTextEntry={!novaSenhaVisivel}
-              />
-              <Pressable onPress={() => setNovaSenhaVisivel((atual) => !atual)} hitSlop={10}>
-                <IconeOlho visivel={novaSenhaVisivel} />
-              </Pressable>
-            </View>
-            <Text style={styles.hintText}>{REGRA_SENHA_MENSAGEM}</Text>
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Confirmar senha</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.inputFlex}
-                placeholder="Sua senha"
-                placeholderTextColor="#9aa1af"
-                value={confirmarSenha}
-                onChangeText={setConfirmarSenha}
-                secureTextEntry={!confirmarSenhaVisivel}
-              />
-              <Pressable onPress={() => setConfirmarSenhaVisivel((atual) => !atual)} hitSlop={10}>
-                <IconeOlho visivel={confirmarSenhaVisivel} />
-              </Pressable>
-            </View>
-          </View>
-
-          {mensagemErro ? <Text style={styles.errorText}>{mensagemErro}</Text> : null}
-
-          <View style={styles.spacer} />
-
-          <Pressable
-            style={[styles.submitButton, !podeEnviar && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={!podeEnviar}
-          >
-            <Text style={styles.submitButtonText}>{isSubmitting ? 'Salvando...' : 'Confirmar'}</Text>
-          </Pressable>
         </View>
-      </ScrollView>
+
+        <View style={styles.grupoCampo}>
+          <Text style={styles.rotulo}>Data de nascimento</Text>
+          <View style={estiloCampo('nascimento')}>
+            <MaterialCommunityIcons name="calendar-outline" size={24} color={cores.textoSuave} />
+            <TextInput
+              ref={nascimentoRef}
+              style={[styles.entrada, semContornoWeb]}
+              placeholder="DD/MM/AAAA"
+              placeholderTextColor={cores.placeholder}
+              value={dataNascimento}
+              onChangeText={(texto) => setDataNascimento(formatDataNascimento(texto))}
+              keyboardType="numeric"
+              maxLength={10}
+              returnKeyType="next"
+              onSubmitEditing={() => novaSenhaRef.current?.focus()}
+              onFocus={() => setCampoEmFoco('nascimento')}
+              onBlur={() => setCampoEmFoco(null)}
+              accessibilityLabel="Data de nascimento"
+            />
+          </View>
+        </View>
+
+        <View style={styles.grupoCampo}>
+          <Text style={styles.rotulo}>Nova senha</Text>
+          <View style={[estiloCampo('novaSenha'), styles.campoSenha]}>
+            <MaterialCommunityIcons name="lock-outline" size={24} color={cores.textoSuave} />
+            <TextInput
+              ref={novaSenhaRef}
+              style={[styles.entrada, semContornoWeb]}
+              placeholder="Sua senha"
+              placeholderTextColor={cores.placeholder}
+              value={novaSenha}
+              onChangeText={setNovaSenha}
+              secureTextEntry={!novaSenhaVisivel}
+              autoCapitalize="none"
+              returnKeyType="next"
+              onSubmitEditing={() => confirmarSenhaRef.current?.focus()}
+              onFocus={() => setCampoEmFoco('novaSenha')}
+              onBlur={() => setCampoEmFoco(null)}
+              accessibilityLabel="Nova senha"
+            />
+            <Pressable
+              onPress={() => setNovaSenhaVisivel((atual) => !atual)}
+              style={({ pressed }) => [styles.botaoMostrar, pressed && styles.pressionado]}
+              accessibilityRole="button"
+              accessibilityLabel={novaSenhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
+            >
+              <MaterialCommunityIcons
+                name={novaSenhaVisivel ? 'eye-off-outline' : 'eye-outline'}
+                size={18}
+                color={cores.destaqueTexto}
+              />
+              <Text style={styles.botaoMostrarTexto}>{novaSenhaVisivel ? 'Ocultar' : 'Mostrar'}</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.dica}>{REGRA_SENHA_MENSAGEM}</Text>
+        </View>
+
+        <View style={styles.grupoCampo}>
+          <Text style={styles.rotulo}>Confirmar senha</Text>
+          <View style={[estiloCampo('confirmarSenha'), styles.campoSenha]}>
+            <MaterialCommunityIcons name="lock-check-outline" size={24} color={cores.textoSuave} />
+            <TextInput
+              ref={confirmarSenhaRef}
+              style={[styles.entrada, semContornoWeb]}
+              placeholder="Sua senha"
+              placeholderTextColor={cores.placeholder}
+              value={confirmarSenha}
+              onChangeText={setConfirmarSenha}
+              secureTextEntry={!confirmarSenhaVisivel}
+              autoCapitalize="none"
+              returnKeyType="go"
+              onSubmitEditing={handleSubmit}
+              onFocus={() => setCampoEmFoco('confirmarSenha')}
+              onBlur={() => setCampoEmFoco(null)}
+              accessibilityLabel="Confirmar senha"
+            />
+            <Pressable
+              onPress={() => setConfirmarSenhaVisivel((atual) => !atual)}
+              style={({ pressed }) => [styles.botaoMostrar, pressed && styles.pressionado]}
+              accessibilityRole="button"
+              accessibilityLabel={confirmarSenhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
+            >
+              <MaterialCommunityIcons
+                name={confirmarSenhaVisivel ? 'eye-off-outline' : 'eye-outline'}
+                size={18}
+                color={cores.destaqueTexto}
+              />
+              <Text style={styles.botaoMostrarTexto}>{confirmarSenhaVisivel ? 'Ocultar' : 'Mostrar'}</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.botaoConfirmar,
+            compacta && styles.botaoConfirmarCompacto,
+            !podeEnviar && styles.botaoConfirmarDesabilitado,
+            pressed && styles.pressionado,
+          ]}
+          onPress={handleSubmit}
+          disabled={!podeEnviar}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !podeEnviar, busy: Boolean(isSubmitting) }}
+        >
+          <Text style={styles.botaoConfirmarTexto}>{isSubmitting ? 'Salvando...' : 'Confirmar'}</Text>
+          {!isSubmitting ? <MaterialCommunityIcons name="check" size={22} color="#ffffff" /> : null}
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -152,138 +294,186 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     width: '100%',
-    backgroundColor: '#ffffff',
+    backgroundColor: cores.fundo,
     overflow: 'hidden',
   },
-  rolagem: {
-    flexGrow: 1,
+  cabecalho: {
+    backgroundColor: cores.destaque,
+    paddingTop: 28,
+    paddingBottom: 36,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    alignItems: 'center',
+    gap: 6,
   },
-  header: {
-    backgroundColor: '#4467f2',
-    paddingHorizontal: 22,
-    paddingTop: 32,
-    paddingBottom: 40,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
-  headerCompacto: {
+  cabecalhoCompacto: {
     paddingTop: 20,
     paddingBottom: 28,
+    gap: 4,
   },
-  backButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-    paddingRight: 12,
-    marginBottom: 8,
+  botaoVoltar: {
+    position: 'absolute',
+    top: 22,
+    left: 16,
+    zIndex: 1,
+    padding: 4,
   },
-  backArrow: {
+  nomeApp: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '800',
     color: '#ffffff',
-    fontSize: 28,
+  },
+  nomeAppCompacto: {
+    fontSize: 26,
     lineHeight: 32,
-    fontWeight: '700',
   },
-  headerTitle: {
-    color: '#ffffff',
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '800',
-  },
-  headerTitleCompacto: {
-    fontSize: 28,
-    lineHeight: 34,
-  },
-  headerSubtitle: {
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '500',
-  },
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: 22,
-    paddingTop: 24,
-    paddingBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '800',
-    color: '#4467f2',
-    marginBottom: 24,
-  },
-  titleCompacto: {
-    fontSize: 24,
-    lineHeight: 30,
-    marginBottom: 16,
-  },
-  field: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 15,
-    lineHeight: 18,
-    fontWeight: '600',
-    color: '#20222b',
-    marginBottom: 8,
-  },
-  input: {
-    height: 54,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e4e8f0',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    fontSize: 17,
-    color: '#20222b',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 54,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e4e8f0',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-  },
-  inputFlex: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 17,
-    color: '#20222b',
-  },
-  hintText: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 17,
-    color: '#8a90a0',
-  },
-  errorText: {
+  slogan: {
     fontSize: 15,
     lineHeight: 20,
-    color: '#e5484d',
+    color: '#ffffff',
     textAlign: 'center',
-    marginTop: 8,
   },
-  spacer: {
-    flexGrow: 1,
-    minHeight: 16,
+  formulario: {
+    marginTop: -24,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    paddingTop: 18,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+    gap: 14,
+    shadowColor: '#121826',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
   },
-  submitButton: {
-    height: 58,
-    borderRadius: 29,
+  formularioCompacto: {
+    marginTop: -18,
+    paddingTop: 14,
+    paddingBottom: 14,
+    gap: 10,
+  },
+  saudacao: {
+    gap: 2,
+    marginBottom: 2,
+  },
+  titulo: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '800',
+    color: cores.texto,
+  },
+  tituloCompacto: {
+    fontSize: 20,
+    lineHeight: 26,
+  },
+  subtitulo: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: cores.textoApoio,
+  },
+  alertaErro: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: cores.erroBorda,
+    backgroundColor: cores.erroFundo,
+  },
+  alertaErroTexto: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    color: cores.erroTexto,
+  },
+  grupoCampo: {
+    gap: 6,
+  },
+  rotulo: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: cores.texto,
+  },
+  campo: {
+    height: 52,
+    borderWidth: 2,
+    borderColor: cores.borda,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingLeft: 14,
+    paddingRight: 14,
+    backgroundColor: '#ffffff',
+  },
+  campoCompacto: {
+    height: 48,
+  },
+  campoSenha: {
+    paddingRight: 6,
+  },
+  campoErro: {
+    borderColor: cores.erro,
+  },
+  campoFoco: {
+    borderColor: cores.bordaFoco,
+  },
+  entrada: {
+    flex: 1,
+    minWidth: 0,
+    height: '100%',
+    fontSize: 17,
+    color: cores.texto,
+  },
+  botaoMostrar: {
+    height: 38,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: cores.botaoMostrarFundo,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  botaoMostrarTexto: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: cores.destaqueTexto,
+  },
+  dica: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: cores.textoSuave,
+  },
+  botaoConfirmar: {
+    height: 54,
+    marginTop: 4,
+    borderRadius: 27,
+    backgroundColor: cores.destaque,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4467f2',
+    gap: 8,
   },
-  submitButtonDisabled: {
+  botaoConfirmarCompacto: {
+    height: 50,
+  },
+  botaoConfirmarDesabilitado: {
     opacity: 0.7,
   },
-  submitButtonText: {
-    color: '#ffffff',
+  botaoConfirmarTexto: {
     fontSize: 18,
-    lineHeight: 22,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  pressionado: {
+    opacity: 0.85,
   },
 });
+

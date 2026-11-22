@@ -7,12 +7,14 @@ import AcoesTreino from './treinoExecucao/AcoesTreino';
 import { cores } from './treinoExecucao/cores';
 import ExercicioHeader from './treinoExecucao/ExercicioHeader';
 import ExercicioMidia from './treinoExecucao/ExercicioMidia';
+import InstrucoesExercicio from './treinoExecucao/InstrucoesExercicio';
 import ModalFinalizarTreino from './treinoExecucao/ModalFinalizarTreino';
 import StatsRow from './treinoExecucao/StatsRow';
 import TelaDescanso from './treinoExecucao/TelaDescanso';
 import TimerExecucao from './treinoExecucao/TimerExecucao';
 import { DESCANSO_INICIAL_SEGUNDOS, useTreinoExecucao } from '../hooks/useTreinoExecucao';
 import type { RegistroExecucao, TreinoDetalhadoDTO } from '../types/treino';
+import { useDimensoesTela } from '../utils/layoutTela';
 
 type TelaTreinoExecucaoProps = {
   treino: TreinoDetalhadoDTO;
@@ -28,6 +30,7 @@ export default function TelaTreinoExecucao({
   onBackPress,
 }: TelaTreinoExecucaoProps) {
   useKeepAwake();
+  const { compacta, alturaShell } = useDimensoesTela();
 
   const {
     status,
@@ -60,9 +63,11 @@ export default function TelaTreinoExecucao({
 
   const pausado = status === 'PAUSADO';
 
-  // Sem sessão criada no backend (ex.: 409 porque já completou o treino de
-  // hoje) não dá pra prosseguir — mostra o motivo e manda de volta, em vez de
-  // deixar o participante "treinar" uma sessão que nunca seria salva.
+  // Altura mínima do vídeo proporcional à tela — em telas altas o flex ocupa o resto.
+  const alturaMinimaMidia = compacta
+    ? Math.round(alturaShell * 0.28)
+    : Math.round(alturaShell * 0.34);
+
   if (erroIniciar) {
     return (
       <SafeAreaView style={styles.container}>
@@ -78,7 +83,6 @@ export default function TelaTreinoExecucao({
     );
   }
 
-  // Ao terminar, mostra a mensagem positiva antes de entregar o fluxo para a tela de feedback.
   if (status === 'CONCLUIDA' || status === 'INTERROMPIDA') {
     return (
       <SafeAreaView style={styles.container}>
@@ -112,6 +116,7 @@ export default function TelaTreinoExecucao({
           proximaSerie={proximaSerieExibida}
           nomeProximoExercicio={nomeProximoExibido}
           pausado={pausado}
+          compacta={compacta}
           onTogglePause={pausado ? retomar : pausar}
           onFinalizar={pedirFinalizar}
         />
@@ -125,35 +130,70 @@ export default function TelaTreinoExecucao({
     );
   }
 
+  const instrucoes = exercicioAtual.exercicio.instrucao ?? [];
+  // Descanso exibido = o que virá após a série atual (entre séries ou transição
+  // para o próximo exercício). Evita mostrar 0s quando só há 1 série e o
+  // descanso real é o de transição.
+  const ultimaSerieDoExercicioAtual = serieAtual >= exercicioAtual.series;
+  const descansoExibido =
+    ultimaSerieDoExercicioAtual && proximoExercicio
+      ? exercicioAtual.descansoTransicaoSegundos
+      : ultimaSerieDoExercicioAtual
+        ? 0
+        : exercicioAtual.descansoSegundos;
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      <View style={styles.scrollContent}>
+      {/*
+        Vídeo (flex:1) preenche o espaço entre o cabeçalho e o bloco inferior.
+        Assim não sobra “buraco” embaixo e o Finalizar permanece sempre visível.
+        object-fit/contain no player evita distorção e corte do conteúdo.
+      */}
+      <View style={styles.corpo}>
         <ExercicioHeader
           indice={exercicioIndex + 1}
           total={treino.itens.length}
           nome={exercicioAtual.exercicio.nome}
+          compacta={compacta}
           onBackPress={pedirFinalizar}
         />
-        <ExercicioMidia
-          videoUrl={exercicioAtual.exercicio.videoUrl}
-          velocidade={exercicioAtual.velocidadeExecucao}
-          duracaoTotalSegundos={exercicioAtual.duracaoEstimadaSegundos}
-          isPaused={pausado}
-        />
-        <View style={styles.timerWrap}>
-          <TimerExecucao
-            segundosRestantes={remaining}
+
+        <View style={[styles.midiaWrap, { minHeight: Math.max(140, alturaMinimaMidia) }]}>
+          <ExercicioMidia
+            videoUrl={exercicioAtual.exercicio.videoUrl}
+            velocidade={exercicioAtual.velocidadeExecucao}
             duracaoTotalSegundos={exercicioAtual.duracaoEstimadaSegundos}
+            isPaused={pausado}
           />
         </View>
-        <StatsRow
-          serieAtual={serieAtual}
-          totalSeries={exercicioAtual.series}
-          duracaoSegundos={exercicioAtual.duracaoEstimadaSegundos}
-          descansoSegundos={exercicioAtual.descansoSegundos}
-        />
-        <AcoesTreino pausado={pausado} onTogglePause={pausado ? retomar : pausar} onFinalizar={pedirFinalizar} />
+
+        <View style={styles.rodape}>
+          <View style={[styles.timerWrap, compacta && styles.timerWrapCompacto]}>
+            <TimerExecucao
+              segundosRestantes={remaining}
+              duracaoTotalSegundos={exercicioAtual.duracaoEstimadaSegundos}
+            />
+          </View>
+
+          <StatsRow
+            serieAtual={serieAtual}
+            totalSeries={exercicioAtual.series}
+            duracaoSegundos={exercicioAtual.duracaoEstimadaSegundos}
+            descansoSegundos={descansoExibido}
+            compacta={compacta}
+          />
+
+          <InstrucoesExercicio instrucoes={instrucoes} />
+
+          <View style={styles.acoesWrap}>
+            <AcoesTreino
+              pausado={pausado}
+              onTogglePause={pausado ? retomar : pausar}
+              onFinalizar={pedirFinalizar}
+            />
+          </View>
+        </View>
       </View>
 
       <ModalFinalizarTreino
@@ -171,14 +211,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: cores.fundo,
   },
-  scrollContent: {
+  corpo: {
     flex: 1,
-    paddingBottom: 8,
+    minHeight: 0,
+  },
+  midiaWrap: {
+    flex: 1,
+    minHeight: 0,
+    marginHorizontal: 16,
+    marginBottom: 4,
+  },
+  rodape: {
+    flexShrink: 0,
   },
   timerWrap: {
     justifyContent: 'center',
-    paddingVertical: 20,
-    minHeight: 60,
+    paddingVertical: 10,
+  },
+  timerWrapCompacto: {
+    paddingVertical: 6,
+  },
+  acoesWrap: {
+    paddingBottom: 10,
+    paddingTop: 4,
   },
   erroContainer: {
     flex: 1,

@@ -77,17 +77,21 @@ export async function login(cpf: string, senha: string): Promise<ParticipanteLog
   return payload;
 }
 
-export async function redefinirSenha(cpf: string, novaSenha: string): Promise<void> {
+export async function redefinirSenha(
+  cpf: string,
+  novaSenha: string,
+  dataNascimento: string,
+): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/senha`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cpf, novaSenha }),
+    body: JSON.stringify({ cpf, novaSenha, dataNascimento }),
   });
 
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(payload.error || 'Não foi possível redefinir a senha');
+    throw new Error(payload.error || 'Os dados informados não conferem');
   }
 }
 
@@ -255,9 +259,14 @@ export async function removerTokenPush(participanteId: number): Promise<void> {
   await tratarResposta(response, 'Não foi possível remover as notificações');
 }
 
-export async function responderPerguntaRefazer(sessaoId: number): Promise<void> {
+export async function responderPerguntaRefazer(
+  sessaoId: number,
+  desejaRefazer: boolean,
+): Promise<void> {
   const response = await fetchComTimeout(`${API_BASE_URL}/sessoes/${sessaoId}/pergunta-refazer`, {
     method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ desejaRefazer }),
   });
   await tratarResposta(response, 'Não foi possível registrar a resposta');
 }

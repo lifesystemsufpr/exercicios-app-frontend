@@ -57,6 +57,10 @@ const MENSAGENS_ENTRADA_SEMANA_COMPLETA = [
 export const MENSAGEM_TREINO_CONCLUIDO_HOJE =
   'Você já completou o treino de hoje! Parabéns pela sua dedicação e cuidado com a saúde. Descanse bem, te espero amanhã para o próximo treino!';
 
+/** Bloqueio do botão quando a meta semanal (3 treinos) já foi cumprida. */
+export const MENSAGEM_LIMITE_TREINOS_SEMANA =
+  'Você já realizou os 3 treinos desta semana! Parabéns pela dedicação. Seu próximo treino estará disponível na segunda-feira.';
+
 // Tempo que o aviso de boas-vindas fica visível antes de desaparecer sozinho.
 // Não é um modal: o idoso nunca fica travado nele, só lê e segue usando o app.
 const BANNER_BOAS_VINDAS_DURACAO_MS = 6000;
@@ -90,12 +94,6 @@ const NOMES_MES = [
 
 const DIAS_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
-const LABEL_FASE: Record<FaseTreino, string> = {
-  INICIANTE: 'INICIANTE',
-  INTERMEDIARIO: 'INTERMEDIÁRIO',
-  AVANCADO: 'AVANÇADO',
-};
-
 function formatarDuracao(segundos: number): string {
   if (!Number.isFinite(segundos) || segundos <= 0) {
     return '~';
@@ -109,15 +107,9 @@ function formatarDuracao(segundos: number): string {
   return restoMin === 0 ? `~${horas}h` : `~${horas}h${restoMin}min`;
 }
 
-function tituloTreino(nome: string, nivel: number | undefined, faseLabel: string | undefined): string {
-  const partes: string[] = [nome.trim() || 'Treino'];
-  if (typeof nivel === 'number') {
-    partes.push(`NÍVEL ${nivel}`);
-  }
-  if (faseLabel) {
-    partes.push(faseLabel);
-  }
-  return partes.join(' - ').toUpperCase();
+/** Só o nome do plano — fase/nível já vêm no nome cadastrado (ex.: "Iniciante – Nível 1 · Treino C"). */
+function tituloTreino(nome: string): string {
+  return (nome.trim() || 'Treino').toUpperCase();
 }
 
 function gerarCelulas(mes: number, ano: number): Array<number | null> {
@@ -153,6 +145,16 @@ interface TelaInicioProps {
    * 1 treino por dia, sem precisar duplicar a chamada a /inicio lá.
    */
   onTreinouHojeChange?: (treinouHoje: boolean) => void;
+  /**
+   * Progresso semanal vindo do engajamento/início — permite ao pai atualizar
+   * `semanaCompleta` imediatamente ao finalizar o 3º treino válido.
+   */
+  onSemanaChange?: (info: { completa: boolean; realizados: number; meta: number }) => void;
+  /**
+   * Após responder o modal de refazer (≥50%): o pai recarrega o treino ativo
+   * (Sim → mesmo treino; Não → avança A→B→C).
+   */
+  onRefazerRespondido?: (desejaRefazer: boolean) => void;
 }
 
 export default function TelaInicio({
@@ -165,6 +167,8 @@ export default function TelaInicio({
   onAbrirPerfil,
   visivel = true,
   onTreinouHojeChange,
+  onSemanaChange,
+  onRefazerRespondido,
 }: TelaInicioProps) {
   const hoje = React.useMemo(() => new Date(), []);
   const [mesExibido, setMesExibido] = React.useState({ mes: hoje.getMonth() + 1, ano: hoje.getFullYear() });
@@ -180,6 +184,8 @@ export default function TelaInicio({
   // aparece quando há um dia selecionado com treino — não mais de forma
   // automática. Tocar no mesmo dia de novo esconde o card.
   const [diaSelecionado, setDiaSelecionado] = React.useState<number | null>(null);
+  const onSemanaChangeRef = React.useRef(onSemanaChange);
+  onSemanaChangeRef.current = onSemanaChange;
 
   const carregarTudo = React.useCallback(
     async (mes: number, ano: number) => {
@@ -191,6 +197,11 @@ export default function TelaInicio({
         ]);
         setDados(inicio);
         setProgresso({ ...engajamento.nivel, faseLabel: engajamento.faseLabel });
+        onSemanaChangeRef.current?.({
+          completa: inicio.semanaCompleta,
+          realizados: engajamento.semana.treinosRealizados,
+          meta: engajamento.semana.meta,
+        });
       } catch (error) {
         setErro(error instanceof Error ? error.message : 'Erro ao carregar o início');
       } finally {
@@ -264,6 +275,7 @@ export default function TelaInicio({
   const treinoDoDiaSelecionado =
     diaSelecionado !== null ? dados?.treinosPorDia[diaSelecionado] ?? null : null;
   const jaTreinouHoje = dados?.treinouHoje ?? false;
+  const semanaCompleta = dados?.semanaCompleta ?? false;
 
   React.useEffect(() => {
     if (dados) {
@@ -363,24 +375,35 @@ export default function TelaInicio({
   }, [perguntaRefazer?.sessaoId]);
 
   const responderRefazer = React.useCallback(
-    async (quizRefazer: boolean) => {
+    async (desejaRefazer: boolean) => {
       if (!perguntaRefazer || respondendoPerguntaRefazer) {
         return;
       }
       setRespondendoPerguntaRefazer(true);
       try {
-        await responderPerguntaRefazer(perguntaRefazer.sessaoId);
+        await responderPerguntaRefazer(perguntaRefazer.sessaoId, desejaRefazer);
       } catch {
         // Falha ao registrar a resposta não deve travar a navegação do participante.
       } finally {
         setRespondendoPerguntaRefazer(false);
         setPerguntaRefazerVisivel(false);
       }
-      if (quizRefazer) {
+      // Atualiza a fila no pai (mesmo treino se Sim; próximo se Não).
+      onRefazerRespondido?.(desejaRefazer);
+      // Só tenta iniciar agora se ainda puder treinar hoje; senão a escolha
+      // fica gravada e a próxima sessão disponível será este mesmo treino.
+      if (desejaRefazer && !jaTreinouHoje && !semanaCompleta) {
         onIniciarTreino();
       }
     },
-    [perguntaRefazer, respondendoPerguntaRefazer, onIniciarTreino],
+    [
+      perguntaRefazer,
+      respondendoPerguntaRefazer,
+      onIniciarTreino,
+      onRefazerRespondido,
+      jaTreinouHoje,
+      semanaCompleta,
+    ],
   );
 
   if (loading) {
@@ -512,11 +535,7 @@ export default function TelaInicio({
             <View style={styles.treinoInfo}>
               <Text style={styles.treinoTitulo}>Treino realizado</Text>
               <Text style={styles.treinoSubtitulo}>
-                {tituloTreino(
-                  treinoDoDiaSelecionado.nome,
-                  treinoDoDiaSelecionado.nivel,
-                  treinoDoDiaSelecionado.fase,
-                )}
+                {tituloTreino(treinoDoDiaSelecionado.nome)}
               </Text>
               <Text style={styles.treinoDetalhe}>
                 {treinoDoDiaSelecionado.quantidadeExercicios}{' '}
@@ -540,11 +559,7 @@ export default function TelaInicio({
             ) : proximoTreino ? (
               <>
                 <Text style={styles.treinoSubtitulo}>
-                  {tituloTreino(
-                    proximoTreino.nome,
-                    proximoTreino.nivel,
-                    proximoTreino.fase ? LABEL_FASE[proximoTreino.fase] : undefined,
-                  )}
+                  {tituloTreino(proximoTreino.nome)}
                 </Text>
                 <Text style={styles.treinoDetalhe}>
                   {proximoTreino.quantidadeExercicios}{' '}
@@ -558,11 +573,15 @@ export default function TelaInicio({
           </View>
         </View>
 
-        {!proximoTreinoCarregando && proximoTreino && jaTreinouHoje && (
+        {!proximoTreinoCarregando && proximoTreino && semanaCompleta && (
+          <Text style={styles.treinoConcluidoMensagem}>{MENSAGEM_LIMITE_TREINOS_SEMANA}</Text>
+        )}
+
+        {!proximoTreinoCarregando && proximoTreino && !semanaCompleta && jaTreinouHoje && (
           <Text style={styles.treinoConcluidoMensagem}>{MENSAGEM_TREINO_CONCLUIDO_HOJE}</Text>
         )}
 
-        {!proximoTreinoCarregando && proximoTreino && !jaTreinouHoje && (
+        {!proximoTreinoCarregando && proximoTreino && !semanaCompleta && !jaTreinouHoje && (
           <Pressable
             style={styles.iniciarBotao}
             onPress={onIniciarTreino}
@@ -589,7 +608,9 @@ export default function TelaInicio({
           <Text style={styles.progressoTexto}>
             {progresso?.programaConcluido
               ? 'Você concluiu todos os níveis'
-              : `${progressoPercentual}% para o próximo nível`}
+              : progresso
+                ? `${progressoPercentual}% concluído neste nível (${progresso.sessoesRealizadas}/${progresso.sessoesNecessarias} treinos)`
+                : '0% concluído neste nível'}
           </Text>
         </View>
       </View>

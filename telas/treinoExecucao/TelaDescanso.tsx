@@ -11,6 +11,7 @@ type TelaDescansoProps = {
   proximaSerie: number;
   nomeProximoExercicio: string;
   pausado: boolean;
+  compacta?: boolean;
   onTogglePause: () => void;
   onFinalizar: () => void;
 };
@@ -21,22 +22,26 @@ export default function TelaDescanso({
   proximaSerie,
   nomeProximoExercicio,
   pausado,
+  compacta = false,
   onTogglePause,
   onFinalizar,
 }: TelaDescansoProps) {
   const progresso = duracaoTotalSegundos > 0 ? segundosRestantes / duracaoTotalSegundos : 0;
+  const tamanhoAnel = compacta ? 180 : 240;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.titulo}>Descanso</Text>
+      <Text style={[styles.titulo, compacta && styles.tituloCompacto]}>Descanso</Text>
 
       <View style={styles.centroWrap}>
         <View style={styles.anelWrap}>
-          <AnelProgresso valor={segundosRestantes} progresso={progresso} />
+          <AnelProgresso valor={segundosRestantes} progresso={progresso} tamanho={tamanhoAnel} />
         </View>
 
         <Text style={styles.proximoLegenda}>{`Próximo: Série ${proximaSerie}`}</Text>
-        <Text style={styles.proximoNome}>{nomeProximoExercicio}</Text>
+        <Text style={styles.proximoNome} numberOfLines={2}>
+          {nomeProximoExercicio}
+        </Text>
       </View>
 
       <View style={styles.acoesWrap}>
@@ -49,21 +54,29 @@ export default function TelaDescanso({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: 12,
   },
   titulo: {
+    flexShrink: 0,
     fontSize: 20,
     color: cores.textoSecundario,
+    marginBottom: 8,
+  },
+  tituloCompacto: {
+    fontSize: 17,
+    marginBottom: 4,
   },
   centroWrap: {
     flex: 1,
+    minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 80,
+    paddingHorizontal: 20,
   },
   anelWrap: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   proximoLegenda: {
     fontSize: 13,
@@ -74,8 +87,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: cores.texto,
+    textAlign: 'center',
   },
   acoesWrap: {
+    flexShrink: 0,
     width: '100%',
+    paddingBottom: 8,
   },
 });

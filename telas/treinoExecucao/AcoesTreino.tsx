@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { cores } from './cores';
 
@@ -11,7 +11,7 @@ type AcoesTreinoProps = {
 
 export default function AcoesTreino({ pausado, onTogglePause, onFinalizar }: AcoesTreinoProps) {
   return (
-    <>
+    <View style={styles.container}>
       <Pressable style={styles.botaoPausar} onPress={onTogglePause}>
         <Text style={styles.textoPausar}>{pausado ? '▶  Retomar Treino' : '⏸  Pausar Treino'}</Text>
       </Pressable>
@@ -19,14 +19,17 @@ export default function AcoesTreino({ pausado, onTogglePause, onFinalizar }: Aco
       <Pressable style={styles.botaoFinalizar} onPress={onFinalizar}>
         <Text style={styles.textoFinalizar}>✕  Finalizar Treino</Text>
       </Pressable>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    gap: 8,
+    paddingHorizontal: 20,
+  },
   botaoPausar: {
-    marginHorizontal: 20,
-    marginTop: 36,
     height: 46,
     borderRadius: 12,
     borderWidth: 1,
@@ -41,9 +44,6 @@ const styles = StyleSheet.create({
     color: cores.texto,
   },
   botaoFinalizar: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 16,
     height: 46,
     borderRadius: 12,
     backgroundColor: cores.vermelho,
